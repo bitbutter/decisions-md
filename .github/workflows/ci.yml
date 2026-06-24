@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Validate + synthetic-payload harness
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Claude Code CLI
+        # Install the CLI so `claude plugin validate` is available.
+        # Falls back gracefully if npm/node is not present in the runner
+        # (the synthetic harness runs independently of the CLI).
+        run: |
+          if command -v npm &>/dev/null; then
+            npm install -g @anthropic-ai/claude-code || true
+          fi
+
+      - name: claude plugin validate --strict
+        run: |
+          if command -v claude &>/dev/null; then
+            claude plugin validate --strict .
+          else
+            echo "claude CLI not available; skipping plugin validate (install it locally to run)"
+          fi
+
+      - name: Synthetic-payload harness
+        run: python3 tests/verify_plugin.py -v

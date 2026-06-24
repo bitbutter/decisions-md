@@ -1,0 +1,13 @@
+# Plugin-owned runtime state (created in the CONSUMING project, never in the plugin repo)
+.decisions/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Test artefacts
+tests/tmp/
