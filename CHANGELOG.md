@@ -47,12 +47,9 @@ canonical source.
   `hook error: [...]: No stderr output` instead of the actionable instructions.
 
 ### Removed
-- **`CHAINLINK_SESSION_ID` env-var support.** `DECISIONS_SESSION_ID` is now the
-  only explicit session-id override. The alias named a tool this plugin does not
-  ship and cannot assume exists; anything still exporting it should export
-  `DECISIONS_SESSION_ID` instead.
-- `DEPLOY.md` — a one-time internal publishing runbook, obsolete once the repo
-  exists, and it named unrelated private projects.
+- `CHAINLINK_SESSION_ID` env-var support. `DECISIONS_SESSION_ID` is the only
+  explicit session-id override.
+- `DEPLOY.md` — a one-time internal publishing runbook.
 
 ## [1.0.0] - 2026-06-24
 
