@@ -16,7 +16,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from decisions_common import (
     setup_utf8_stdout, get_project_root, get_cache_dir, find_decisions_md,
-    load_config, get_tracked_extensions, get_exempt_paths,
+    load_config, get_tracked_extensions, get_exempt_paths, is_within_project_root,
 )
 
 setup_utf8_stdout()
@@ -92,6 +92,11 @@ def main():
     if not file_path:
         sys.exit(0)
 
+    # This project's gate governs this project's files only. An edit somewhere else
+    # (another repo, or the plugin's own source) must never be blocked here.
+    if not is_within_project_root(file_path, project_root):
+        sys.exit(0)
+
     config = load_config(project_root)
 
     if not is_tracked_file(file_path, get_tracked_extensions(config)):
@@ -109,6 +114,9 @@ def main():
         sys.exit(0)
 
     # Gate is closed. Block with an actionable, plugin-aware message.
+    # For an exit-2 PreToolUse block, Claude Code feeds ONLY stderr back to the
+    # model; anything on stdout is discarded and the block renders as the opaque
+    # "hook error: [...]: No stderr output".
     cli = _cli_path()
     cli_query = f'python3 "{cli}" --query <keywords>' if cli else "query_decisions.py --query <keywords>"
     cli_ack = f'python3 "{cli}" --ack-no-design "reason"' if cli else 'query_decisions.py --ack-no-design "reason"'
@@ -121,7 +129,8 @@ def main():
         f"  (or directly: {cli_query})\n\n"
         "ALTERNATIVE: acknowledge this is not design-relevant work (logged for review):\n"
         f"  {cli_ack}\n\n"
-        "Either path unlocks edits for the rest of this session. Then retry your edit."
+        "Either path unlocks edits for the rest of this session. Then retry your edit.",
+        file=sys.stderr,
     )
     sys.exit(2)
 

@@ -17,7 +17,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from decisions_common import (
     setup_utf8_stdout, get_project_root, get_cache_dir, find_decisions_md,
-    load_config, get_tracked_extensions,
+    load_config, get_tracked_extensions, is_within_project_root, DECISION_ID_RE,
 )
 
 setup_utf8_stdout()
@@ -60,7 +60,7 @@ def validate_decisions(file_path):
     seen_ids = {}
 
     for i, line in enumerate(lines):
-        m = re.match(r'^(DEC-(\w+)-(\d+)):\s*(.+)$', line)
+        m = re.match(rf'^({DECISION_ID_RE}):\s*(.+)$', line)
         if not m:
             continue
         dec_id = m.group(1)
@@ -118,7 +118,8 @@ def main():
         sys.exit(0)
 
     ext = os.path.splitext(file_path)[1].lower()
-    if ext in get_tracked_extensions(load_config(project_root)):
+    if (ext in get_tracked_extensions(load_config(project_root))
+            and is_within_project_root(file_path, project_root)):
         append_pending_edit(project_root, file_path)
 
     sys.exit(0)

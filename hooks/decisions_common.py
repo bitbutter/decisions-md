@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Shared helpers for the DECISIONS.md enforcement plugin hooks.
 
-Self-contained: no chainlink, no coppice. State lives in a plugin-owned,
-project-relative `.decisions/cache/` directory next to DECISIONS.md.
+Self-contained: standard library only, and no dependency on any external decision
+tracker. State lives in a plugin-owned, project-relative `.decisions/cache/`
+directory next to DECISIONS.md.
 
 Project-root resolution (in order): the `CLAUDE_PROJECT_DIR` env var that Claude
 Code sets for plugin hooks (authoritative consuming-project root), then a walk up
@@ -30,8 +31,23 @@ CONFIG_RELPATH = os.path.join(".decisions", "config.json")
 _DECISIONS_SEARCH_SUBDIRS = ("", "docs", "support", "design", "decisions")
 
 # Defaults (overridable per-project via .decisions/config.json).
-DEFAULT_TRACKED_EXTENSIONS = [".gd", ".tscn", ".tres", ".gdshader", ".gdextension"]
+# Godot types plus the common scripting/source types, so the gate is useful out of
+# the box outside Godot projects. A project that wants a narrower (or wider) set
+# overrides `tracked_extensions` in .decisions/config.json.
+DEFAULT_TRACKED_EXTENSIONS = [
+    # Godot
+    ".gd", ".tscn", ".tres", ".gdshader", ".gdextension",
+    # Common scripting / source languages
+    ".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx",
+    ".rb", ".go", ".rs", ".lua", ".sh", ".ps1",
+]
 DEFAULT_EXEMPT_PATHS = ["DECISIONS.md", ".decisions/", ".claude/", "tools/"]
+
+# A decision ID may carry ONE optional trailing lowercase letter (DEC-AREA-007d),
+# which marks an amend/override of the parent entry. Every place that parses or
+# validates an ID must accept the suffix, or suffix entries get silently absorbed
+# into the parent block and become invisible to --query and --validate.
+DECISION_ID_RE = r"DEC-([A-Z]+)-\d+[a-z]?"
 
 
 def setup_utf8_stdout():
@@ -123,6 +139,25 @@ def get_exempt_paths(config):
     return [str(p) for p in paths]
 
 
+def is_within_project_root(file_path, project_root):
+    """True only if `file_path` resolves to a location inside `project_root`.
+
+    A project's gate governs that project's own files only. Editing a file OUTSIDE
+    the root (another repo, or this plugin's own source while you work elsewhere)
+    must never be gated and must never be recorded as this project's pending
+    decision-capture -- otherwise it corrupts the wrong project's .decisions/cache
+    and false-blocks that project's Stop gate.
+    """
+    if not file_path or not project_root:
+        return False
+    try:
+        root = os.path.normcase(os.path.abspath(project_root))
+        target = os.path.normcase(os.path.abspath(file_path))
+    except (OSError, ValueError):
+        return False
+    return target == root or target.startswith(root + os.sep)
+
+
 def get_overview(decisions_path):
     """One-line summary of DECISIONS.md: total count + per-area breakdown, or "" on error."""
     try:
@@ -130,7 +165,7 @@ def get_overview(decisions_path):
     except OSError:
         return ""
     areas = {}
-    for m in re.finditer(r"^DEC-([A-Z]+)-\d+:", content, re.MULTILINE):
+    for m in re.finditer(rf"^{DECISION_ID_RE}:", content, re.MULTILINE):
         a = m.group(1).lower()
         areas[a] = areas.get(a, 0) + 1
     if not areas:

@@ -6,11 +6,9 @@ decisions_common helper -- NOT this script's own location -- so it targets the p
 even when installed inside a plugin dir. State lives in <project>/.decisions/cache.
 
 Session id resolution order:
-  1. DECISIONS_SESSION_ID env var (explicit override for scripted use).
-  2. CHAINLINK_SESSION_ID env var (back-compat alias; kept until no chainlink-based
-     consumer remains; harmless to keep indefinitely as a convenience alias).
-  3. .decisions/cache/current-session-id file (written at SessionStart by the plugin).
-  4. Transcript-based lookup for claude -p autonomous workers.
+  1. DECISIONS_SESSION_ID env var (explicit override for scripted / CI use).
+  2. .decisions/cache/current-session-id file (written at SessionStart by the plugin).
+  3. Transcript-based lookup for claude -p autonomous workers.
 """
 import re, sys, os, argparse
 from pathlib import Path
@@ -31,12 +29,16 @@ class DecisionParser:
         if not self.decisions_path.exists():
             raise FileNotFoundError("DECISIONS.md not found")
         content = self.decisions_path.read_text(encoding="utf-8-sig")
-        blocks = re.split(r"^(DEC-[A-Z]+-\d+):", content, flags=re.MULTILINE)[1:]
+        # Accept an optional lowercase suffix letter: DEC-INPUT-007 AND DEC-INPUT-007d
+        # are both first-class IDs (a suffix marks an amend/override of the parent).
+        # Without the [a-z]? group, suffix entries are silently absorbed into the
+        # parent block and become invisible to --query and --validate.
+        blocks = re.split(r"^(DEC-[A-Z]+-\d+[a-z]?):", content, flags=re.MULTILINE)[1:]
         for i in range(0, len(blocks), 2):
             if i + 1 >= len(blocks): break
             decision_id = blocks[i].strip()
             block_text = blocks[i + 1].strip()
-            area_match = re.match(r"DEC-([A-Z]+)-\d+", decision_id)
+            area_match = re.match(r"DEC-([A-Z]+)-\d+[a-z]?", decision_id)
             if not area_match: continue
             area = area_match.group(1).lower()
             self.areas.add(area)
@@ -56,7 +58,7 @@ class DecisionParser:
                 issues.append(f"Missing Status line for {dec_id}")
         seen_ids = {}
         content = self.decisions_path.read_text(encoding="utf-8-sig")
-        for match in re.finditer(r"^(DEC-[A-Z]+-\d+):", content, re.MULTILINE):
+        for match in re.finditer(r"^(DEC-[A-Z]+-\d+[a-z]?):", content, re.MULTILINE):
             dec_id = match.group(1)
             if dec_id in seen_ids:
                 issues.append(f"Duplicate decision ID: {dec_id}")
@@ -82,7 +84,9 @@ class DecisionParser:
             if area and dec_data["area"] != area.lower():
                 continue
             if query_stems:
-                text = f"{dec_data['statement']} {dec_data['full_text']}".lower()
+                # Include the ID itself so a query like "007d" matches the suffix entry
+                # DEC-INPUT-007d, whose body text does not repeat "007d".
+                text = f"{dec_id} {dec_data['statement']} {dec_data['full_text']}".lower()
                 stems = [self.simple_stem(w) for w in re.split(r"\W+", text) if w]
                 if sum(1 for stem in query_stems if stem in stems) == 0:
                     continue
@@ -171,8 +175,9 @@ def _find_claude_session_id_from_transcripts(project_root):
 
 
 def get_session_id(project_root=None):
-    # 1. Explicit env override (interactive sessions). DECISIONS_SESSION_ID is canonical;
-    #    CHAINLINK_SESSION_ID is accepted as a convenience alias for projects that set it.
+    # 1. Explicit env override (interactive sessions). DECISIONS_SESSION_ID is canonical.
+    #    CHAINLINK_SESSION_ID is a legacy alias kept only so existing setups that export
+    #    it keep working; undocumented, and safe to drop once nothing sets it.
     sid = os.environ.get("DECISIONS_SESSION_ID") or os.environ.get("CHAINLINK_SESSION_ID")
     if sid:
         return sid

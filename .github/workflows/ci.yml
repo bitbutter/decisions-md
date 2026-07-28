@@ -29,9 +29,14 @@ jobs:
           fi
 
       - name: claude plugin validate --strict
+        # Validate BOTH manifests. Pointing at the repo root resolves to
+        # marketplace.json (it takes precedence when present), so the plugin
+        # manifest is validated explicitly by path -- otherwise a broken
+        # plugin.json would sail through CI.
         run: |
           if command -v claude &>/dev/null; then
             claude plugin validate --strict .
+            claude plugin validate --strict .claude-plugin/plugin.json
           else
             echo "claude CLI not available; skipping plugin validate (install it locally to run)"
           fi

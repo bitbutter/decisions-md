@@ -49,8 +49,11 @@ def main():
 
     print(
         f'<decisions-nudge>Previous turn edited tracked files: {summary}. '
-        f'If any edit encodes a new design decision, check DECISIONS.md for near-duplicates '
-        f'and propose an entry if none exists.</decisions-nudge>'
+        f'If any edit changes USER- OR DESIGNER-FACING behavior (a rule, what a '
+        f'control means, balance, UX) — not a pure implementation/refactor/bugfix — '
+        f'check DECISIONS.md for near-duplicates and propose an entry: the binding '
+        f'statement + brief why, no file paths, no function/variable names, no '
+        f'account of how a bug was found or fixed.</decisions-nudge>'
     )
     sys.exit(0)
 

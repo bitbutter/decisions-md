@@ -174,9 +174,13 @@ def test_gate_locked(tmp):
     env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID}
 
     payload = {"tool_name": "Write", "tool_input": {"file_path": str(project / "main.gd")}, "session_id": SESSION_ID}
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
+    rc, out, err = run_hook("decisions_gate.py", payload, env)
     check("gate: blocks (exit 2)", rc == 2)
-    check("gate: block message present", "DECISIONS GATE" in out)
+    # The block message MUST go to stderr: for an exit-2 PreToolUse block Claude Code
+    # feeds only stderr back to the model and discards stdout, so a stdout message
+    # surfaces as the opaque "hook error: [...]: No stderr output".
+    check("gate: block message present on stderr", "DECISIONS GATE" in err)
+    check("gate: block message not on stdout", "DECISIONS GATE" not in out)
 
 
 # ── Section 5: gate — unlock via CLI ──────────────────────────────────────────
@@ -371,6 +375,87 @@ def test_multiword_query(tmp):
     check("cli: --query multi-word finds results", "ARCH" in out or "DECISIONS FOUND" in out)
 
 
+# ── Section 13: broadened default tracked extensions ──────────────────────────
+
+def test_default_extensions(tmp):
+    print("\n[13] Default tracked extensions (beyond Godot)")
+    project = setup_project(tmp)
+    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-ext"}
+
+    # No config.json -> defaults apply. Each of these must be gated out of the box.
+    for ext in (".py", ".ts", ".rs", ".sh"):
+        target = project / f"thing{ext}"
+        target.write_text("source", encoding="utf-8")
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(target)},
+                   "session_id": SESSION_ID + "-ext"}
+        rc, _, _ = run_hook("decisions_gate.py", payload, env)
+        check(f"gate: default set blocks {ext} (exit 2)", rc == 2)
+
+    # A type that is deliberately NOT in the default set stays ungated.
+    doc = project / "notes.txt"
+    doc.write_text("notes", encoding="utf-8")
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(doc)},
+               "session_id": SESSION_ID + "-ext"}
+    rc, _, _ = run_hook("decisions_gate.py", payload, env)
+    check("gate: default set ignores .txt (exit 0)", rc == 0)
+
+
+# ── Section 14: edits outside the project root are not this project's business ─
+
+def test_outside_project_root(tmp):
+    print("\n[14] Files outside the project root")
+    project = setup_project(tmp)
+    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-out"}
+
+    # A tracked-type file that lives OUTSIDE the gated project (e.g. another repo).
+    outside = Path(tempfile.mkdtemp(dir=tmp)) / "other.gd"
+    outside.write_text("# another project's source", encoding="utf-8")
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(outside)},
+               "session_id": SESSION_ID + "-out"}
+
+    rc, _, _ = run_hook("decisions_gate.py", payload, env)
+    check("gate: does not block an edit outside the project root", rc == 0)
+
+    # ...and it must not be recorded as this project's pending decision-capture,
+    # which would false-block this project's Stop gate.
+    run_hook("decisions_check.py", payload, env)
+    pending = project / ".decisions" / "cache" / "decisions-pending-edits.json"
+    recorded = json.loads(pending.read_text()) if pending.exists() else []
+    check("check: does not record an outside edit as pending", recorded == [])
+
+
+# ── Section 15: suffix decision IDs (DEC-AREA-NNNb/c/d) ───────────────────────
+
+SUFFIX_DECISIONS_MD = """\
+DEC-INPUT-007: Jumping is bound to the A button.
+Status: Active (2026-01-01)
+
+DEC-INPUT-007d: OVERRIDES the binding clause of DEC-INPUT-007. Jumping is bound to B.
+Status: Active (overrides DEC-INPUT-007 binding clause)
+"""
+
+
+def test_suffix_ids(tmp):
+    print("\n[15] Suffix decision IDs")
+    project = Path(tempfile.mkdtemp(dir=tmp))
+    (project / "DECISIONS.md").write_text(SUFFIX_DECISIONS_MD, encoding="utf-8")
+    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-sfx"}
+
+    # The suffix entry must be its own decision, not absorbed into the parent block.
+    rc, out, _ = run_cli(["--query", "007d"], env)
+    check("cli: --query 007d exits 0", rc == 0)
+    check("cli: --query 007d surfaces the suffix entry", "DEC-INPUT-007d" in out)
+
+    # It must also validate as its own entry (parent + suffix, no false duplicate).
+    rc, out, _ = run_cli(["--validate"], env)
+    check("cli: --validate accepts a suffix ID", rc == 0, out)
+
+    # The area overview must count both entries, not just the parent.
+    payload = {"prompt": "x"}
+    _, out, _ = run_hook("decisions_binding_nudge.py", payload, env)
+    check("binding_nudge: overview counts the suffix entry", "input:2" in out, out)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -390,6 +475,9 @@ def main():
         test_stop_hook(tmp)
         test_config_override(tmp)
         test_multiword_query(tmp)
+        test_default_extensions(tmp)
+        test_outside_project_root(tmp)
+        test_suffix_ids(tmp)
 
     print(f"\n{'='*50}")
     print(f"Results: {_passes} passed, {_failures} failed")

@@ -1,8 +1,8 @@
 # decisions-md
 
 A Claude Code plugin that turns a project's `DECISIONS.md` into enforced, binding
-design memory. No chainlink or coppice dependency — it owns its own `.decisions/`
-state and works in any project that has a `DECISIONS.md`.
+design memory. It owns its own `.decisions/` state, needs no third-party packages,
+and works in any project that has a `DECISIONS.md`.
 
 ## What it does
 
@@ -30,6 +30,9 @@ root or in `docs/`, `support/`, `design/`, or `decisions/`.
 /plugin install decisions-md
 ```
 
+This repo is its own marketplace — it ships `.claude-plugin/marketplace.json`
+alongside the plugin, so the two commands above are all you need.
+
 Restart or reload Claude Code so the hooks register. Then drop a `DECISIONS.md` into
 your project (or an existing subdirectory). On the next session start, the gate
 activates: editing a tracked file is blocked until you run `/decisions`.
@@ -54,7 +57,7 @@ Drop `<project>/.decisions/config.json` to override defaults:
 }
 ```
 
-- `tracked_extensions` — file types the gate guards (default: Godot set: `.gd`, `.tscn`, `.tres`, `.gdshader`, `.gdextension`).
+- `tracked_extensions` — file types the gate guards. Default: Godot (`.gd`, `.tscn`, `.tres`, `.gdshader`, `.gdextension`) plus common script/source types (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.rb`, `.go`, `.rs`, `.lua`, `.sh`, `.ps1`).
 - `exempt_paths` — project-relative prefixes that never trip the gate.
 
 An explicit empty list is honoured: `"tracked_extensions": []` disables the gate
@@ -68,6 +71,11 @@ Status: Active (YYYY-MM-DD)
 ```
 
 Valid status values: `Active`, `Superseded by DEC-AREA-NNN`, `Deprecated`.
+
+A decision ID may carry one optional trailing lowercase letter — `DEC-AREA-007d` —
+marking an amend or override of `DEC-AREA-007`. Suffix entries are first-class:
+they parse, validate, and match `--query 007d` on their own. The skill documents
+when to use one instead of rewriting the parent.
 
 Check format at any time: `/decisions --validate`.
 
@@ -92,9 +100,8 @@ The plugin derives the session id (needed for the per-session gate unlock marker
 in this order:
 
 1. `DECISIONS_SESSION_ID` env var (explicit override for scripted / CI use).
-2. `CHAINLINK_SESSION_ID` env var (convenience alias for projects migrating from chainlink).
-3. `.decisions/cache/current-session-id` (written at SessionStart — the normal path).
-4. Transcript-based lookup (`~/.claude/projects/`) for `claude -p` autonomous workers.
+2. `.decisions/cache/current-session-id` (written at SessionStart — the normal path).
+3. Transcript-based lookup (`~/.claude/projects/`) for `claude -p` autonomous workers.
 
 ## Python requirement
 

@@ -128,9 +128,14 @@ def main():
 
     reason = (
         f'Tracked files were edited: {file_list}. '
-        'Evaluate whether any edit encodes a new design decision; '
-        'if yes check for near-duplicates via the decisions read CLI and propose an entry to the user; '
-        'if none do, state that explicitly.'
+        'Decide if any changes USER- OR DESIGNER-FACING behavior (a rule, what a '
+        'control means, balance, UX) — not a pure implementation/refactor/bugfix '
+        'with no behavior change. '
+        'If yes: consult the decisions read CLI for near-duplicates, then propose an '
+        'entry to the user: the binding statement + brief why, no file paths, no '
+        'function/variable names, no account of how a bug was found or fixed. '
+        'If no: reply with exactly this single line and nothing else — '
+        'No DECISIONS.md change needed.'
     )
 
     print(json.dumps({

@@ -1,8 +1,8 @@
 {
   "name": "decisions-md",
   "displayName": "DECISIONS.md Enforcement",
-  "version": "1.0.0",
-  "description": "Binding design-memory enforcement for a project's DECISIONS.md: a consult-before-edit gate, a read CLI + /decisions command, binding-rule context injection, and decision-capture nudges. No chainlink or coppice dependency; owns its own .decisions/cache state.",
+  "version": "1.1.0",
+  "description": "Binding design-memory enforcement for a project's DECISIONS.md: a consult-before-edit gate, a read CLI + /decisions command, binding-rule context injection, and decision-capture nudges. Tracker-agnostic; owns its own .decisions/cache state.",
   "author": {
     "name": "bitbutter",
     "url": "https://github.com/bitbutter"
