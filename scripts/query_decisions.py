@@ -175,10 +175,8 @@ def _find_claude_session_id_from_transcripts(project_root):
 
 
 def get_session_id(project_root=None):
-    # 1. Explicit env override (interactive sessions). DECISIONS_SESSION_ID is canonical.
-    #    CHAINLINK_SESSION_ID is a legacy alias kept only so existing setups that export
-    #    it keep working; undocumented, and safe to drop once nothing sets it.
-    sid = os.environ.get("DECISIONS_SESSION_ID") or os.environ.get("CHAINLINK_SESSION_ID")
+    # 1. Explicit env override (interactive sessions, scripted / CI use).
+    sid = os.environ.get("DECISIONS_SESSION_ID")
     if sid:
         return sid
     # 2. Cache file written verbatim by the SessionStart hook from the gate's own payload.

@@ -36,9 +36,9 @@ canonical source.
 - `validate_decisions` now requires an uppercase area (`DEC-[A-Z]+-NNN`), matching
   the read CLI's parser. Lowercase-area entries were never visible to `--query`,
   so validating them was misleading.
-- Dropped references to the unpublished `chainlink` / `coppice` tools from the
-  README, docstrings, and plugin description. `CHAINLINK_SESSION_ID` still works
-  as an undocumented legacy alias so existing setups don't break.
+- README, docstrings, and the plugin description no longer refer to unpublished
+  sibling tooling. The plugin stands alone: standard library only, no external
+  tracker, no assumed companion tool.
 
 ### Fixed
 - **The gate's block message now goes to stderr.** For an exit-2 PreToolUse block
@@ -47,6 +47,10 @@ canonical source.
   `hook error: [...]: No stderr output` instead of the actionable instructions.
 
 ### Removed
+- **`CHAINLINK_SESSION_ID` env-var support.** `DECISIONS_SESSION_ID` is now the
+  only explicit session-id override. The alias named a tool this plugin does not
+  ship and cannot assume exists; anything still exporting it should export
+  `DECISIONS_SESSION_ID` instead.
 - `DEPLOY.md` — a one-time internal publishing runbook, obsolete once the repo
   exists, and it named unrelated private projects.
 
@@ -89,5 +93,3 @@ binding injection, stop block-once, per-project config, portability no-op).
 - `hooks.json` updated to use `python3` (standard on macOS/Linux). Windows users
   with only `python` in PATH: edit `hooks/hooks.json` and replace `python3` with
   `python`, or install Python via the Microsoft Store (adds `python3` to PATH).
-- `CHAINLINK_SESSION_ID` env var retained as a legacy alias for
-  `DECISIONS_SESSION_ID`, so setups that already export it keep working.
