@@ -76,7 +76,7 @@ binding injection, stop block-once, per-project config, portability no-op).
   binding-line builder. Standard library only.
 - `scripts/query_decisions.py` — Read CLI: area/keyword search, --validate,
   --ack-no-design. Writes the per-session unlock marker so the gate clears.
-- `commands/decisions.md` — `/decisions` slash command.
+- `commands/decisions.md` — `/decisions-md:decisions` slash command.
 - `skills/decisions-binding/` — The abandon/adapt/override binding protocol as an
   installable skill.
 - Per-project config via `<project>/.decisions/config.json` (tracked_extensions,
@@ -86,7 +86,7 @@ binding injection, stop block-once, per-project config, portability no-op).
 
 ### Fixed (carry-over polish from extraction)
 - `--query` argument now uses `nargs='*'` so multi-word queries work without
-  quoting: `/decisions --query session id` rather than `--query "session id"`.
+  quoting: `/decisions-md:decisions --query session id` rather than `--query "session id"`.
 - `hooks.json` updated to use `python3` (standard on macOS/Linux). Windows users
   with only `python` in PATH: edit `hooks/hooks.json` and replace `python3` with
   `python`, or install Python via the Microsoft Store (adds `python3` to PATH).

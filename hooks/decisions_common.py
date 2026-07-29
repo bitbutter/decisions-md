@@ -186,7 +186,7 @@ def build_binding_lines(project_root):
         return None
     lines = [
         "[DECISIONS-BINDING] DECISIONS.md rules are binding.",
-        "  Read path: /decisions [--area A] [--query K]  (or query_decisions.py).",
+        "  Read path: /decisions-md:decisions [--area A] [--query K]  (or query_decisions.py).",
         "  Call BEFORE design-touching work. Do NOT Read/Grep DECISIONS.md directly.",
         "  On direct answer or contradiction: present abandon/adapt/override options.",
     ]

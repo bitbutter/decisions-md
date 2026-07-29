@@ -125,7 +125,7 @@ def main():
         "You cannot edit tracked files until you have consulted the project's design decisions.\n\n"
         "Choose ONE path to unlock further edits this session:\n\n"
         "PREFERRED: consult by keywords from your task:\n"
-        "  /decisions <keywords>\n"
+        "  /decisions-md:decisions <keywords>\n"
         f"  (or directly: {cli_query})\n\n"
         "ALTERNATIVE: acknowledge this is not design-relevant work (logged for review):\n"
         f"  {cli_ack}\n\n"

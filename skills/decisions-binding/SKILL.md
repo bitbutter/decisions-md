@@ -43,8 +43,8 @@ documentation and not a changelog. Before drafting an entry, check:
 Before any design-touching work, query the decisions instead of opening the file:
 
 ```
-/decisions --area <area>
-/decisions --query <keywords>
+/decisions-md:decisions --area <area>
+/decisions-md:decisions --query <keywords>
 ```
 
 Querying through the CLI also unlocks the consult-before-edit gate for the session.
@@ -99,7 +99,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query_decisions.py" --ack-no-design "reas
 When you implement novel behavior or the user expresses a clear design choice:
 
 1. Validate format first: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query_decisions.py" --validate`.
-2. Search for near-duplicates with `/decisions --query <keywords>`.
+2. Search for near-duplicates with `/decisions-md:decisions --query <keywords>`.
 3. If a near-duplicate exists, offer to overwrite, merge, or keep both.
 4. If none exists, draft the entry and ask the user to confirm before writing it to
    `DECISIONS.md`. Decisions document **intent**, not implementation detail — see
