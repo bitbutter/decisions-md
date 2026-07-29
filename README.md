@@ -41,7 +41,7 @@ Status: Active (2026-01-15)
 only groups by them. Valid statuses are `Active`, `Superseded by DEC-AREA-NNN`,
 and `Deprecated`.
 
-Run `/decisions --validate` to check the format at any time.
+Run `/decisions-md:decisions --validate` to check the format at any time.
 
 ## Use it
 
@@ -49,16 +49,16 @@ From the next session start, editing a tracked file is blocked until you consult
 the decisions:
 
 ```
-/decisions --query jump input      # search
-/decisions --area input            # everything in one area
-/decisions                         # list areas and counts
+/decisions-md:decisions --query jump input      # search
+/decisions-md:decisions --area input            # everything in one area
+/decisions-md:decisions                         # list areas and counts
 ```
 
 Any of those unlocks editing for the rest of the session. If the work has no design
 bearing, say so and carry on:
 
 ```
-/decisions --ack-no-design "fixing a typo in a comment"
+/decisions-md:decisions --ack-no-design "fixing a typo in a comment"
 ```
 
 When you stop, the Stop hook checks whether you edited source without touching
@@ -140,7 +140,7 @@ the nudges and Stop hook running.
 | `decisions_binding_nudge.py` | UserPromptSubmit | Injects the binding reminder and area overview on every prompt. |
 | `decisions_precompact.py` | PreCompact | Carries the binding reminder through context compaction. |
 | `decisions_stop_check.py` | Stop | Blocks stop once per session when tracked files were edited but DECISIONS.md was not. |
-| `commands/decisions.md` | `/decisions` | The read command. Unlocks the gate. |
+| `commands/decisions.md` | `/decisions-md:decisions` | The read command. Unlocks the gate. |
 | `skills/decisions-binding/` | skill | The abandon/adapt/override protocol. |
 | `scripts/query_decisions.py` | | The read CLI behind the command. |
 

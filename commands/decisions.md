@@ -9,7 +9,7 @@ Running the decisions read CLI (this also unlocks the edit gate for this session
 
 !`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query_decisions.py" $ARGUMENTS`
 
-Multi-word queries work without quoting: `/decisions --query session id` collects
+Multi-word queries work without quoting: `/decisions-md:decisions --query session id` collects
 "session id" as a single query. Use `--area AREA` to filter by area, or omit all
 arguments to list areas and counts.
 
