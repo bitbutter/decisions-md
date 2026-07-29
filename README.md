@@ -38,7 +38,7 @@ Status: Active (2026-01-15)
 ```
 
 `DEC-<AREA>-<NNN>`, then a `Status:` line. Areas are yours to name; the plugin
-just groups by them. Valid statuses are `Active`, `Superseded by DEC-AREA-NNN`,
+only groups by them. Valid statuses are `Active`, `Superseded by DEC-AREA-NNN`,
 and `Deprecated`.
 
 Run `/decisions --validate` to check the format at any time.
@@ -54,8 +54,8 @@ the decisions:
 /decisions                         # list areas and counts
 ```
 
-Any of those unlocks editing for the rest of the session. If the work genuinely
-has no design bearing, say so and carry on:
+Any of those unlocks editing for the rest of the session. If the work has no design
+bearing, say so and carry on:
 
 ```
 /decisions --ack-no-design "fixing a typo in a comment"
