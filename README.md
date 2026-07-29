@@ -1,7 +1,7 @@
 # decisions-md
 
-Agents forget design decisions. You settle a question in one session, and three
-sessions later the model re-opens it, or quietly builds the thing you rejected.
+Agents forget design decisions. They re-open settled questions, or build the thing
+you already rejected.
 
 `DECISIONS.md` is a plain file you write yourself, one entry per binding decision.
 This plugin makes Claude Code read it before it edits source, keeps the rules in
