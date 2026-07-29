@@ -24,6 +24,24 @@ PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
 HOOKS_DIR = PLUGIN_ROOT / "hooks"
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 
+
+def _configure_utf8_output():
+    """Force UTF-8 on our own stdout/stderr before printing anything.
+
+    Windows defaults a redirected stream to cp1252, which cannot encode the section
+    headers below -- the harness died mid-run with UnicodeEncodeError rather than
+    reporting a result. The plugin's own entry points already do this; the harness
+    that tests them did not.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+
+
+_configure_utf8_output()
+
 DECISIONS_MD = """\
 DEC-ARCH-001: Use a layered architecture with clear separation of concerns.
 Status: Active (2026-01-01)

@@ -32,6 +32,14 @@ from pathlib import Path
 PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
 HOOKS_JSON = PLUGIN_ROOT / "hooks" / "hooks.json"
 
+# Windows defaults a redirected stream to cp1252; hook stderr echoed below may contain
+# characters it cannot encode, which would kill the harness instead of reporting.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 SESSION_ID = "launch-test-session"
 DECISIONS_MD = """\
 DEC-ARCH-001: Use a layered architecture with clear separation of concerns.

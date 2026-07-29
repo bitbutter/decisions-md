@@ -33,7 +33,11 @@
 ### Changed
 - CI runs both harnesses on `ubuntu-latest`, `macos-latest` and `windows-latest`,
   under `bash` on all three. It previously ran on Linux only, which is why this was
-  invisible.
+  invisible. Running it on Windows immediately exposed a second latent bug: the test
+  harness printed a `→` in a section header, which Windows' default cp1252 output
+  encoding cannot represent, so the harness died mid-run instead of reporting a
+  result. Both harnesses now force UTF-8 on their own output, as the plugin's entry
+  points already did.
 - The gate's block message names the interpreter actually running the hook instead of
   a hardcoded `python3`, so the command it prints can be pasted and run.
 
