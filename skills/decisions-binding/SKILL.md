@@ -91,14 +91,14 @@ If a question or change has no bearing on design decisions, acknowledge it so th
 gate doesn't keep nudging:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query_decisions.py" --ack-no-design "reason"
+/decisions-md:decisions --ack-no-design "reason"
 ```
 
 ## Proposing a new decision
 
 When you implement novel behavior or the user expresses a clear design choice:
 
-1. Validate format first: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/query_decisions.py" --validate`.
+1. Validate format first: `/decisions-md:decisions --validate`.
 2. Search for near-duplicates with `/decisions-md:decisions --query <keywords>`.
 3. If a near-duplicate exists, offer to overwrite, merge, or keep both.
 4. If none exists, draft the entry and ask the user to confirm before writing it to

@@ -8,8 +8,22 @@ on:
 
 jobs:
   test:
-    name: Validate + synthetic-payload harness
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Every OS reports independently. A Windows-only launch failure is precisely
+      # the class of bug this matrix exists to catch, so it must not be masked by
+      # an unrelated failure elsewhere.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        # Git Bash on Windows -- the same shell Claude Code launches hooks with, so
+        # the CI environment matches the one the plugin actually runs in.
+        shell: bash
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +36,7 @@ jobs:
       - name: Install Claude Code CLI
         # Install the CLI so `claude plugin validate` is available.
         # Falls back gracefully if npm/node is not present in the runner
-        # (the synthetic harness runs independently of the CLI).
+        # (both harnesses run independently of the CLI).
         run: |
           if command -v npm &>/dev/null; then
             npm install -g @anthropic-ai/claude-code || true
@@ -41,5 +55,11 @@ jobs:
             echo "claude CLI not available; skipping plugin validate (install it locally to run)"
           fi
 
+      - name: Hook launch harness
+        # Runs the command strings from hooks.json through a real shell. Catches an
+        # interpreter that is not on PATH -- a failure that is otherwise completely
+        # silent at runtime.
+        run: python tests/verify_hook_launch.py -v
+
       - name: Synthetic-payload harness
-        run: python3 tests/verify_plugin.py -v
+        run: python tests/verify_plugin.py -v

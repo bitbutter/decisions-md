@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.2.0] - 2026-07-29
+
+### Fixed
+- **The plugin did nothing at all on most Windows installs.** Every hook command
+  launched `python3`, which is standard on macOS and Linux but absent from Windows
+  unless Python came from the Microsoft Store. Each hook failed to start, and the
+  failure was silent: the plugin listed, its command autocompleted, its skill loaded,
+  and no gate, nudge or Stop check ever ran. Hooks now resolve the interpreter at
+  launch — `$(command -v python3 || command -v python || command -v py)` — so one
+  manifest works on all three platforms with no editing and no per-platform variants.
+  (Registering both a `python3` and a `py -3` variant was rejected: on a machine with
+  both, every hook would run twice.)
+
+  Bare invocation of the `.py` files, relying on the shebang, was also measured and
+  rejected. Claude Code runs hooks through a POSIX shell on Windows (Git Bash), not
+  `cmd.exe`, so the `.py` file association never applies; bash instead reads the
+  Python source as a shell script and the resulting nonzero exit *blocks the prompt*.
+
+### Added
+- `--doctor`: reports the interpreter actually running, the resolved plugin and
+  project roots, whether a `DECISIONS.md` was found, whether the state directory is
+  writable, and whether the hooks have run at all. A missing `current-session-id` is
+  the direct signal that no hook is launching. Exits non-zero when it finds a problem.
+- `tests/verify_hook_launch.py`: runs the command strings out of `hooks/hooks.json`
+  through a real shell and asserts each one starts, that SessionStart writes its
+  marker, and that the gate still exits 2. The existing harness ran the hook scripts
+  through `sys.executable`, so it proved the logic correct while saying nothing about
+  whether Claude Code could launch them — which is how a total Windows failure passed
+  68/68 checks.
+
+### Changed
+- CI runs both harnesses on `ubuntu-latest`, `macos-latest` and `windows-latest`,
+  under `bash` on all three. It previously ran on Linux only, which is why this was
+  invisible.
+- The gate's block message names the interpreter actually running the hook instead of
+  a hardcoded `python3`, so the command it prints can be pasted and run.
+
 ## [1.1.0] - 2026-07-28
 
 Folds in the fixes made on the `decisions-md-marketplace` copy (0.1.1–0.1.4),

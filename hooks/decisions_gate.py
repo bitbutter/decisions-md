@@ -118,8 +118,12 @@ def main():
     # model; anything on stdout is discarded and the block renders as the opaque
     # "hook error: [...]: No stderr output".
     cli = _cli_path()
-    cli_query = f'python3 "{cli}" --query <keywords>' if cli else "query_decisions.py --query <keywords>"
-    cli_ack = f'python3 "{cli}" --ack-no-design "reason"' if cli else 'query_decisions.py --ack-no-design "reason"'
+    # Name the interpreter actually running this hook rather than a hardcoded `python3`:
+    # on Windows that name is frequently `python` or `py`, and a copy-pasteable command
+    # that does not run is worse than no command at all.
+    py = sys.executable or "python3"
+    cli_query = f'"{py}" "{cli}" --query <keywords>' if cli else "query_decisions.py --query <keywords>"
+    cli_ack = f'"{py}" "{cli}" --ack-no-design "reason"' if cli else 'query_decisions.py --ack-no-design "reason"'
     print(
         "DECISIONS GATE: edits to design-relevant files require consulting DECISIONS.md first.\n\n"
         "You cannot edit tracked files until you have consulted the project's design decisions.\n\n"

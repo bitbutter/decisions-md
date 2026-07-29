@@ -201,6 +201,95 @@ def get_session_id(project_root=None):
     return None
 
 
+def _doctor():
+    """Report whether the plugin is actually working here. Returns a process exit code.
+
+    A hook whose interpreter cannot be found fails SILENTLY: the plugin still lists,
+    the command still autocompletes, and nothing runs. This is the one command that
+    says so out loud, on any OS. It is a diagnostic only -- it deliberately does NOT
+    write a gate unlock marker.
+    """
+    failures = []
+
+    def report(status, label, value):
+        print(f"  {status:<5} {label}: {value}")
+        if status == "FAIL":
+            failures.append(label)
+
+    print("decisions-md doctor\n")
+
+    print("Interpreter")
+    report("OK", "running this script", sys.executable or "(unknown)")
+    report("--", "version", sys.version.split()[0])
+    print()
+
+    print("Paths")
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        report("OK" if os.path.isdir(plugin_root) else "FAIL", "CLAUDE_PLUGIN_ROOT", plugin_root)
+    else:
+        # Unset is normal for a direct CLI run; it is only set for plugin-spawned hooks.
+        report("--", "CLAUDE_PLUGIN_ROOT", "not set (normal outside a hook)")
+    project_root = get_project_root()
+    report("OK", "project root", project_root)
+
+    decisions_md = find_decisions_md(project_root)
+    if decisions_md:
+        report("OK", "DECISIONS.md", decisions_md)
+    else:
+        # Not a failure: with no DECISIONS.md the plugin is designed to no-op.
+        report("--", "DECISIONS.md", "not found -- gate and nudges intentionally no-op")
+    print()
+
+    print("State directory")
+    cache_dir = Path(get_cache_dir(project_root))
+    if cache_dir.is_dir():
+        try:
+            probe = cache_dir / ".doctor-write-probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            report("OK", "cache dir writable", str(cache_dir))
+        except OSError as exc:
+            report("FAIL", "cache dir writable", f"{cache_dir} ({exc})")
+    else:
+        # Do NOT create it: a diagnostic must not leave state behind in a project
+        # that may not even use this plugin. Check the nearest existing ancestor.
+        ancestor = cache_dir
+        while not ancestor.exists() and ancestor.parent != ancestor:
+            ancestor = ancestor.parent
+        writable = os.access(str(ancestor), os.W_OK)
+        report("OK" if writable else "FAIL", "cache dir writable",
+               f"{cache_dir} (not created yet; {ancestor} is "
+               f"{'writable' if writable else 'NOT writable'})")
+
+    sid_file = cache_dir / "current-session-id"
+    if sid_file.exists():
+        report("OK", "SessionStart hook has run", f"{sid_file.name} present")
+    else:
+        # THE diagnostic signal. SessionStart writes this in every project, with or
+        # without a DECISIONS.md, so its absence means the hooks are not launching --
+        # nearly always because the interpreter named in hooks.json is not on PATH.
+        report("FAIL", "SessionStart hook has run",
+               "current-session-id is MISSING -- hooks are not running in this project. "
+               "Most likely the interpreter in hooks/hooks.json is not on PATH here. "
+               "Start a new Claude Code session; if it is still missing, check that one "
+               "of python3/python/py resolves in your shell.")
+
+    sid = get_session_id(project_root=project_root)
+    if sid:
+        report("OK", "session id resolves", sid)
+    else:
+        report("FAIL", "session id resolves",
+               "unresolved -- the gate cannot be unlocked until this works")
+    print()
+
+    if failures:
+        print(f"{len(failures)} problem(s): " + ", ".join(failures))
+        return 1
+    print("No problems found.")
+    return 0
+
+
 def main():
     _configure_utf8_output()
     parser = argparse.ArgumentParser(description="Query a project's binding DECISIONS.md")
@@ -210,7 +299,14 @@ def main():
     parser.add_argument("--query", nargs='*', help="Search for keywords (multi-word OK without quotes)")
     parser.add_argument("--validate", action="store_true", help="Validate format")
     parser.add_argument("--ack-no-design", metavar="REASON", help="Acknowledge no design")
+    parser.add_argument("--doctor", action="store_true",
+                        help="Report whether the plugin is actually working here")
     args = parser.parse_args()
+
+    # Runs before the DECISIONS.md check below: a project without one is exactly the
+    # case the doctor has to be able to diagnose.
+    if args.doctor:
+        return _doctor()
 
     # Normalise --query to a single string (or None).
     query_str = " ".join(args.query).strip() if args.query else None

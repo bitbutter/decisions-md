@@ -12,7 +12,7 @@
       "name": "decisions-md",
       "source": "./",
       "description": "Enforces a project's DECISIONS.md binding design memory: gates source-file edits until decisions are consulted, injects the binding rules into every prompt and through compaction, and backstops decision capture on Stop. Tracker-agnostic; owns its own .decisions/cache/ state.",
-      "version": "1.1.0"
+      "version": "1.2.0"
     }
   ]
 }

@@ -166,11 +166,23 @@ non-zero, rather than minting one the gate could never match.
 
 ## Python
 
-The hooks call `python3`, standard on macOS and Linux. On Windows, Microsoft Store
-Python puts `python3` on PATH; the legacy installer only adds `python`, so either
-alias it or replace `python3` with `python` throughout `hooks/hooks.json`.
+Standard library only. You need a Python 3 reachable under any one of the names
+`python3`, `python` or `py` — each hook picks the first that resolves, so the same
+manifest works on macOS, Linux and Windows with no editing.
 
-Standard library only.
+Claude Code runs hooks through a POSIX shell on every platform, Git Bash included on
+Windows, which is what makes one command string portable.
+
+If the plugin seems inert, ask it:
+
+```
+/decisions-md:decisions --doctor
+```
+
+It reports the interpreter actually running, the project root it resolved,
+whether it found a `DECISIONS.md`, and whether the hooks have run at all. A missing
+`current-session-id` means no hook is launching — nearly always because no Python is
+on PATH under any of the three names.
 
 ## Local install
 
