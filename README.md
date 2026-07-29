@@ -3,13 +3,12 @@
 Agents forget design decisions. They re-open settled questions and contradict
 choices the project already made.
 
-`DECISIONS.md` is a plain file you write yourself, one entry per binding decision.
+`DECISIONS.md` is a plain file with one entry per binding decision.
 This plugin makes Claude Code read it before it edits source, keeps the rules in
-context when the conversation compacts, and asks you to record new decisions
-before the session ends.
+context when the conversation compacts, offers to record new decisions when appropriate, and alerts you when a request would contradict an existing decision.
 
 It needs no third-party packages and no companion tooling. Drop it into any
-project that has a `DECISIONS.md`.
+project that has a top-level `DECISIONS.md`.
 
 ## Install
 
@@ -21,7 +20,7 @@ project that has a `DECISIONS.md`.
 This repo is its own marketplace, so those two commands are all you need. Restart
 or reload Claude Code afterwards so the hooks register.
 
-Nothing happens yet. The gate, the nudges and the Stop check all no-op silently
+The gate, the nudges and the Stop check all no-op silently
 until the project has a `DECISIONS.md`, so you can install first and write the file
 later. The one exception is the SessionStart hook, which records the session id to
 `.decisions/cache/` in every project regardless, so that adding a `DECISIONS.md`
