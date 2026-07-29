@@ -11,8 +11,8 @@
     {
       "name": "decisions-md",
       "source": "./",
-      "description": "Enforces a project's DECISIONS.md binding design memory: gates source-file edits until decisions are consulted, injects the binding rules into every prompt and through compaction, and backstops decision capture on Stop. Tracker-agnostic; owns its own .decisions/cache/ state.",
-      "version": "1.2.0"
+      "description": "Binding design memory for a project's DECISIONS.md. Serves the decisions that govern a file just before Claude edits it, carries them through compaction, lints the file for format and bloat, and asks about capture only for work no decision covers. Standard library only; keeps its state out of your repository.",
+      "version": "2.0.0"
     }
   ]
 }

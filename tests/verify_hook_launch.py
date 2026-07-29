@@ -42,9 +42,9 @@ for _stream in (sys.stdout, sys.stderr):
 
 SESSION_ID = "launch-test-session"
 DECISIONS_MD = """\
-DEC-ARCH-001: Use a layered architecture with clear separation of concerns.
-Status: Active (2026-01-01)
+DEC-INPUT-001: Jumping is bound to the A button.
 """
+STATE_ROOT = None  # set in main(); keeps a test run out of your real state dir
 
 _passes = 0
 _failures = 0
@@ -116,6 +116,7 @@ def run_via_shell(bash, command, payload, project):
         **os.environ,
         "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
         "CLAUDE_PROJECT_DIR": str(project),
+        "DECISIONS_STATE_DIR": str(STATE_ROOT),
     }
     result = subprocess.run(
         [bash, "-c", command],
@@ -176,21 +177,25 @@ def main():
     check("some Python 3 resolves for the manifest's resolver", True)
     print(f"    resolver picks: {resolver.stdout.strip().splitlines()[0]}")
 
+    global STATE_ROOT
     with tempfile.TemporaryDirectory(prefix="decisions_md_launch_") as tmp:
+        STATE_ROOT = Path(tmp) / "_state"
+        STATE_ROOT.mkdir()
         project = Path(tmp) / "project"
         project.mkdir()
         (project / "DECISIONS.md").write_text(DECISIONS_MD, encoding="utf-8")
-        (project / "main.gd").write_text("# godot source", encoding="utf-8")
+        (project / "input_handler.gd").write_text("# godot source", encoding="utf-8")
 
-        gate_payload = {
+        edit_payload = {
             "session_id": SESSION_ID,
             "tool_name": "Write",
-            "tool_input": {"file_path": str(project / "main.gd")},
+            "tool_input": {"file_path": str(project / "input_handler.gd")},
         }
         payloads = {
             "decisions_session_start.py": {"session_id": SESSION_ID},
-            "decisions_gate.py": gate_payload,
-            "decisions_check.py": gate_payload,
+            "decisions_serve.py": edit_payload,
+            "decisions_check.py": edit_payload,
+            "decisions_stop_check.py": {"session_id": SESSION_ID},
         }
 
         # Every command in the manifest must at minimum START.
@@ -201,35 +206,33 @@ def main():
                   not launch_failed(result),
                   f"rc={result.returncode} stderr={result.stderr.strip()[:400]}")
 
-        # The two behaviours that matter most, driven through the shell.
-        print("\n[2] SessionStart writes the session marker through the shell")
+        # The behaviours that matter most, driven through the shell.
+        print("\n[2] SessionStart persists the session id through the shell")
         session_cmd = next(c for _, s, c in iter_hook_commands()
                            if s == "decisions_session_start.py")
         run_via_shell(bash, session_cmd, {"session_id": SESSION_ID}, project)
-        sid_file = project / ".decisions" / "cache" / "current-session-id"
-        check("session_start: wrote current-session-id", sid_file.exists())
-        if sid_file.exists():
+        sid_files = list(STATE_ROOT.glob("*/current-session-id"))
+        check("session_start: wrote current-session-id outside the project", len(sid_files) == 1,
+              [str(p) for p in sid_files])
+        if sid_files:
             check("session_start: id matches the payload",
-                  sid_file.read_text(encoding="utf-8").strip() == SESSION_ID)
+                  sid_files[0].read_text(encoding="utf-8").strip() == SESSION_ID)
+        check("session_start: created nothing inside the project",
+              not (project / ".decisions").exists())
 
-        print("\n[3] Gate still blocks with exit 2 through the shell")
-        # Exit-code fidelity is the point: a gate that fails to block is worse than one
-        # that errors, and a shell wrapper is exactly the kind of thing that eats a 2.
-        gate_cmd = next(c for _, s, c in iter_hook_commands() if s == "decisions_gate.py")
-        marker = project / ".decisions" / "cache" / f"decisions-checked-{SESSION_ID}"
-        if marker.exists():
-            marker.unlink()
-        result = run_via_shell(bash, gate_cmd, gate_payload, project)
-        check("gate: exits 2 (blocks)", result.returncode == 2,
+        print("\n[3] The serve hook blocks with exit 2 through the shell")
+        # Exit-code fidelity is the point: the block IS the delivery mechanism, and a
+        # shell wrapper is exactly the kind of thing that eats a 2.
+        serve_cmd = next(c for _, s, c in iter_hook_commands() if s == "decisions_serve.py")
+        result = run_via_shell(bash, serve_cmd, edit_payload, project)
+        check("serve: exits 2 (delivers)", result.returncode == 2,
               f"rc={result.returncode} stderr={result.stderr.strip()[:400]}")
-        check("gate: block message survives on stderr",
-              "DECISIONS GATE" in result.stderr)
+        check("serve: the decision survives on stderr",
+              "DEC-INPUT-001" in result.stderr, result.stderr[:400])
 
-        print("\n[4] Gate allows once unlocked, through the shell")
-        marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.touch()
-        result = run_via_shell(bash, gate_cmd, gate_payload, project)
-        check("gate: exits 0 after unlock", result.returncode == 0,
+        print("\n[4] The serve hook stays quiet once that area has been served")
+        result = run_via_shell(bash, serve_cmd, edit_payload, project)
+        check("serve: exits 0 the second time", result.returncode == 0,
               f"rc={result.returncode} stderr={result.stderr.strip()[:400]}")
 
     print(f"\n{'='*50}")

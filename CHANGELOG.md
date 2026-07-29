@@ -1,5 +1,185 @@
 # Changelog
 
+## [2.0.0] - 2026-07-29
+
+A rewrite around one rule: **DECISIONS.md states what is true now, and git holds what
+used to be true.** Everything that existed to preserve history inside the file is gone,
+and the gate stopped being a gate.
+
+### Changed — the file format (breaking)
+
+- **No `Status:` line.** Every entry in the file is binding; a line that said so on
+  every entry said nothing. `Active`, `Superseded by …` and `Deprecated` are gone with
+  it. A leftover `Status:` line is now a lint error.
+- **No override-suffix IDs.** `DEC-INPUT-007d` used to mean "overrides part of
+  DEC-INPUT-007", which meant reading two entries and reconciling them to learn one
+  rule. To change a decision, edit it in place and keep its ID — code comments cite
+  those IDs, and a citation should lead to the rule in force. Put the reason in the
+  commit message.
+- **Retiring a decision means deleting it.** If "we rejected X" still binds future
+  work, that is a live rule and should be written as one.
+- A decision is now one line: `DEC-AREA-NNN: The rule.`, plus an optional `Context:`.
+- `/decisions-md:decisions --lint --write` removes the plain `Status:` lines for you
+  and reports the ones carrying text that needs a human decision.
+
+### Changed — the gate became a delivery mechanism
+
+- **The PreToolUse hook now serves the decisions that govern the file being edited**
+  instead of blocking until someone runs a query. It matches the target path to
+  decision areas, prints those decisions, and lets the retry through. A file no
+  decision covers passes in silence.
+- One block per area per session, rather than one per session regardless of relevance.
+  Moving from input code to render code shows you the render decisions.
+- `--ack-no-design` is gone, along with `logs/decisions/ack-log.txt`. It existed to
+  escape a block that no longer happens for work with no design bearing.
+- `decisions_gate.py` is now `decisions_serve.py`.
+
+### Changed — state left your repositories
+
+- Plugin state moved to `~/.claude/decisions-md-state/<project>/`. It used to be written
+  into every project you opened, including projects with no `DECISIONS.md`, where an
+  agent running `git add -A` could commit it. Adding `.decisions/` to `.gitignore` is
+  no longer part of adopting the plugin. A project's `.decisions/config.json` stays in
+  the project, where it belongs.
+- `--doctor` reports a leftover `.decisions/cache/` and tells you it is safe to delete.
+
+### Removed
+
+- The **UserPromptSubmit hooks**, both of them. The binding reminder was static text
+  re-sent on every prompt; it is now emitted once at SessionStart and again through
+  compaction. The post-edit nudge duplicated the Stop check with worse timing.
+- Seven hooks are now five.
+
+### Changed — less pressure to write things down
+
+- **The Stop check only fires for work in areas no decision covers.** If a rule
+  already governs the files you touched, you probably did not just invent one, and
+  asking anyway is how a decisions file fills with entries nobody needed.
+- Its default answer is now explicitly "no entry is needed", and proposing one
+  requires naming the existing decision it was checked against.
+- `--lint` gained bloat warnings: oversized entries, near-duplicate statements,
+  file and function names in a statement, and areas past ~25 entries.
+
+### Fixed
+
+- **Parallel tool calls lost each other's state.** Every hook process read one shared
+  session JSON, changed a field and wrote it back, so two hooks running at once
+  silently discarded each other — measured, 20 parallel edit-recordings kept 8. Each
+  fact is now its own small file and nothing is read-modify-written; "has this area
+  been served" is settled by an atomic create, which exactly one process can win.
+- **An edit could be blocked forever.** The serve hook printed its decisions and
+  blocked, trusting a state write it never checked. If that write failed — on Windows,
+  any sync client or scanner holding the file is enough — the block repeated on every
+  retry with no way through. It now blocks only after successfully claiming the area.
+- **Any non-UTF-8 byte in DECISIONS.md crashed every hook**, with a traceback, on
+  every edit. `UnicodeDecodeError` is a `ValueError`, not an `OSError`, so it slipped
+  past the handler. A file saved in the Windows system codepage was enough. Decoding
+  is now lenient and `--lint` reports the encoding instead.
+- **The Stop check could be silently cancelled by an unrelated edit.** It asked git
+  whether DECISIONS.md was dirty and took yes to mean "already reconciled" — so one
+  stray uncommitted line from last week disabled it. It now uses whether *this session*
+  wrote the file, which is the question it was actually asking. No git call at all.
+- **State could still land inside your project.** `expanduser("~")` does not raise when
+  there is no home directory; on Windows it returns the literal string `~`, which was
+  then joined onto a relative path and created inside whatever directory the hook was
+  launched from. There is now a labelled temp fallback, and `--doctor` fails loudly.
+- **Reported line numbers were wrong for files containing a stray carriage return.**
+  Both this code and Python's own universal-newline translation folded a lone `\r`
+  into a line break, so the linter told you to go and delete the wrong line.
+- A failed atomic write left its temp file behind permanently — the state sweep only
+  matched session files, so nothing ever collected them.
+- Taking the list of edited files reported an edit it had failed to delete, so a locked
+  marker file could be handed back on the next call as well. Removing the marker is what
+  makes it a "take"; an edit that cannot be removed is now left for the sweep instead.
+- The state sweep aged a session by its directory's own mtime, which stops moving once
+  the subdirectories exist. A session running continuously for over a week could have
+  had its state deleted while still in use.
+- An unrelated file named `decisions.md` anywhere in the tree (a vendored dependency,
+  say) was treated as the project's own decisions file and exempted from everything.
+- **An unclosed code fence silently swallowed every decision after it** — they stopped
+  being binding and nothing said so. Only a closed fence is treated as one now, and an
+  unclosed fence is a lint error. A fence also has to close on the same character and at
+  least the same length, so a ```` ```` ```` block wrapping a ``` ``` ``` example no
+  longer ends early and leaks its contents back out as live decisions. `~~~` counts as
+  a fence too; it used to be ignored entirely.
+- **`--lint` could still stall the editor** on a file with many verbose areas: 10,000
+  decisions took 34 seconds against a 5-second hook timeout. Almost all of it was line
+  numbers — `text[:pos].count("\n")` re-scans the file from the top for every match,
+  which is quadratic in file size. Now 0.4s for the same file.
+- An `area_map` entry in config suppressed the rest of the matching entirely, so pinning
+  a directory to one area silently hid every other area that governed those files.
+- A word used exactly once in the whole file counted as "belonging" to its area by
+  arithmetic alone, which is how a vendored test framework matched a narrative decision
+  area. One such word is no longer enough on its own.
+- Vendored and generated trees — `addons/`, `vendor/`, `third_party/`, `node_modules/`,
+  `.godot/`, `build/`, `dist/` — are exempt by default. They are not your design surface.
+- The function-call warning printed `` `spawn_boss(` ``, having stripped the closing
+  paren that made it a call.
+
+### Fixed — which decisions get shown
+
+Measured against two real projects (119 decisions, 385 source files):
+
+- **The plural of a word no longer stems differently from the singular.** `enemies`
+  became `enem` while `enemy` stayed `enemy`, so the two forms stopped matching each
+  other — two files about the same subject got different decisions depending on which
+  folder name someone happened to type. It also turned `class`, `status`, `process`
+  and `address` into words that were not themselves.
+- **An area named after a common directory word was invisible.** `build`, `test`,
+  `core` and `util` are stripped from paths as generic noise, so a project with a
+  BUILD area could never match its own build files. A project's own area names are
+  never treated as noise now.
+- **The fallback matcher weighs which area a word belongs to**, rather than counting
+  raw overlap. Everyday vocabulary used to carry a match — "weapon" plus "element"
+  tagged a fifth of one project's files with an area about cursor cosmetics.
+- **A decision's `Context:` and `Source:` lines are searched too, not just its
+  statement.** That is where an entry names the file or function it governs, and it
+  was frequently the only textual link between a rule and the code it binds. One real
+  decision, written *because* of a bug in `game_grid.gd`, was never shown when editing
+  that file.
+- Non-ASCII file names yielded no tokens at all, which guaranteed a miss.
+- A config `area_map` glob no longer swallows the rest of the matching: an explicit
+  mapping is unioned with the area a file is literally named after, rather than
+  replacing it. `*` in those globs also stops crossing directory separators, which is
+  what anyone writing `src/*` means.
+- `_write_atomic` wrote in text mode, so on Windows every `\n` became `\r\n` — text
+  that already carried `\r\n` was written as `\r\r\n`, quietly corrupting the file.
+- Exempt paths were matched as a substring of the absolute path, so `tools/` also
+  exempted `src/tools/` and any directory whose full path happened to contain those
+  characters. They are now project-relative prefixes.
+- The default exempt list was mangled before use: a blanket `lstrip("./")` turned
+  `.decisions/` into `decisions/` and `.claude/` into `claude/`, so neither was
+  actually exempt.
+- A query that matched nothing printed **every** decision in the file. On a large file
+  one bad keyword cost hundreds of lines of context. It now shows the area list.
+- Query results and served decisions are both capped, and say how much they withheld.
+- `--lint --write` preserves the file's existing line endings instead of rewriting
+  them, so deleting a few lines does not produce a whole-file diff.
+
+### Added
+
+- `"enabled": false` in `.decisions/config.json` turns the plugin off for one project.
+- `area_map` in config pins path globs to decision areas, for paths whose names say
+  nothing about what they contain: `{"gfx/**": "render"}`.
+- `DECISIONS_STATE_DIR` relocates the state root (the test harness uses it so a test
+  run cannot touch your real state). The default deliberately ends in `-state`: the
+  conventional clone location for this plugin is `~/.claude/decisions-md`, and a state
+  root at that path would write project state into the plugin's own working tree.
+- `--lint` reports a `DECISIONS.md` that is not valid UTF-8.
+- The test harness now covers concurrency (20 hooks at once), files damaged by
+  encoding and stray control characters, and the Stop check's cancel signal. None of
+  those were exercised before, which is how the state races survived a green run.
+
+### Migrating an existing DECISIONS.md
+
+```
+/decisions-md:decisions --lint --write   # strips the plain Status lines
+/decisions-md:decisions --lint           # lists what still needs a human
+```
+
+Anything left is a judgement call: fold each override-suffix entry back into its
+parent, and delete retired entries.
+
 ## [1.2.0] - 2026-07-29
 
 ### Fixed

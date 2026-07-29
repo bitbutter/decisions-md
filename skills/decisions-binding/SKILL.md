@@ -1,106 +1,105 @@
 ---
 name: decisions-binding
-description: The binding protocol for a project's DECISIONS.md design-memory. Use BEFORE design-touching work, and whenever a decisions query result may directly answer a question or contradict a proposed change. Explains how to consult decisions and how to present abandon/adapt/override options.
+description: The binding protocol for a project's DECISIONS.md design memory. Use before design-touching work, when a decision may answer a question or contradict a proposed change, and when deciding whether something new belongs in the file. Covers the entry format, changing and retiring decisions, and the abandon/adapt/override protocol.
 ---
 
 # DECISIONS.md binding protocol
 
 `DECISIONS.md` records binding design decisions. Code and tests must follow them.
-Each entry has the form:
+
+## The format
 
 ```
-DEC-AREA-NNN: Statement.
-Status: Active (YYYY-MM-DD)
+DEC-INPUT-001: Jumping is bound to the A button.
+Context: The face buttons are reserved for actions the player uses under pressure.
 ```
 
-Status values: `Active`, `Superseded by DEC-AREA-NNN`, `Deprecated`.
+An ID, a colon, and the rule. The statement may wrap across lines. `Context:` is
+optional and holds the reasoning, briefly.
+
+There is no status line and no status vocabulary. **Everything in the file is
+binding** — that is the whole point of the file. A `Status:` line would say the same
+thing on every entry, so it says nothing.
+
+There are no override-suffix IDs (`DEC-INPUT-001d`). They are a lint error.
+
+## Changing a decision
+
+Edit the entry in place and keep its ID.
+
+Do not append a second entry that overrides the first, and do not stack a revision
+log inside the entry. The file states what is true now; `git log -p DECISIONS.md`
+states what used to be true, with a date, an author and a message. Put the reason for
+the change in the commit message.
+
+Keeping the ID stable matters: code comments cite these IDs, and a comment pointing at
+`DEC-INPUT-001` should lead to the rule that is in force, not to a superseded one with
+a pointer to its own replacement.
+
+If a change genuinely splits one decision into two, keep the original ID for the part
+that inherits the original intent and mint a new ID for the rest.
+
+## Retiring a decision
+
+Delete it.
+
+The obvious worry — that someone will now re-open a settled question — is worth
+thinking through once. If "we considered X and rejected it" still binds future work,
+that is not a retired decision, it is a live one: write it as a rule in its own right.
+Otherwise the question really is open again, and re-opening it is correct.
 
 ## What belongs in an entry
 
-DECISIONS.md records **user- or designer-facing** decisions: rules, UX, balance,
-what a control does, win/scoring conditions. It is not implementation
-documentation and not a changelog. Before drafting an entry, check:
+DECISIONS.md records **user- or designer-facing** decisions: rules, UX, balance, what
+a control does, win and scoring conditions. It is not implementation documentation and
+not a changelog.
 
-- **Would a user or designer care, not just a programmer?** If a fact only makes
-  sense to someone reading the code, it's implementation detail — it belongs in a
-  code comment (citing the decision ID), not here.
-- **State the rule, not the fix.** Never narrate how a bug was found or corrected
-  ("corrected after discovering X was wrong", "PROBLEM: … RULE: …"). Write only the
-  current binding rule and, briefly, why.
-- **No implementation fingerprints in the statement.** No file paths, line numbers,
-  function or variable names in the binding statement itself. A `Source:` /
-  `Context:` line may name the implementing file in one short clause for
-  traceability — not a walkthrough of the code.
-- **Pure refactors, internal fixes, and behavior-preserving changes need no entry.**
-  Only behavior a user or designer would notice is in scope.
-- **Don't narrate history inline.** Record an override as a suffix entry (below),
-  not as a "REVISION: X redefined as Y, replacing Z" paragraph stacked inside one
-  entry's prose. Folding a settled parent+suffix chain back into one current-state
-  entry is a separate, periodic prune pass — not something to do at decision time.
+- **Would a user or designer care, not just a programmer?** If a fact only makes sense
+  to someone reading the code, it belongs in a code comment citing the decision ID.
+- **State the rule, not the fix.** Never narrate how a bug was found or corrected.
+- **No implementation fingerprints.** No file paths, line numbers, function or variable
+  names in the statement.
+- **Pure refactors, internal fixes and behavior-preserving changes need no entry.**
+- **One or two sentences.** An entry that runs past about eight lines has stopped being
+  a rule and become a design document; the linter will say so.
 
-## Always consult via the read path — never read the file directly
+## Consulting decisions
 
-Before any design-touching work, query the decisions instead of opening the file:
+The decisions that govern a file are shown to you automatically, once per area per
+session, immediately before your first edit there. You do not need to ask for them.
+
+To look things up yourself:
 
 ```
-/decisions-md:decisions --area <area>
 /decisions-md:decisions --query <keywords>
+/decisions-md:decisions --area <area>
+/decisions-md:decisions                     # areas and counts
 ```
-
-Querying through the CLI also unlocks the consult-before-edit gate for the session.
-Do **not** Read or Grep `DECISIONS.md` directly — the query tool exists so the gate
-can confirm a real consultation happened, and so you see only the relevant entries.
 
 ## When a decision is directly relevant
 
-If a decision **directly answers** the question or **directly contradicts** a
-proposed change, stop and present the user three options:
+If a decision **directly answers** the question or **directly contradicts** a proposed
+change, stop and give the user three options:
 
 1. **Abandon** — drop this line of inquiry; wait for direction.
 2. **Adapt** — achieve the intent within the existing decision.
-3. **Override** — supersede the decision and proceed (propose an updated entry:
-   set the old one's Status to `Superseded by DEC-AREA-NNN` and draft the new entry).
+3. **Override** — supersede it. Edit that entry in place under its existing ID, then
+   proceed.
 
-## Amending or superseding an existing decision
-
-When the user chooses **Override** (or **Adapt**) for a decision that already
-exists, do NOT rewrite the parent clause in place — that erases the prior intent
-and makes the history unreadable. Add a **suffix entry** instead, which the query
-tool recognizes as its own first-class decision:
-
-- **ID:** append a lowercase letter to the parent number — `DEC-AREA-NNNb`, then
-  `c`, `d`, … in order. One letter only (`[a-z]`); never `007b1` or `007_bb`.
-- **Header line:** `DEC-AREA-NNNn: OVERRIDES the <clause> of DEC-AREA-NNN` (or
-  `REFINES`, `SUPERSEDES`) followed by the statement.
-- Give it its own `Status: Active (overrides DEC-AREA-NNN <clause>)` line.
-- Leave the parent clause in place, but add a one-line superseded-note on its
-  `Refined` / `Context` line pointing at the suffix entry, so the file is not
-  internally contradictory.
-
-Suffix entries are queryable: `--query "NNNd"` returns the suffix decision, not
-just the parent. If a query for a suffix you know exists returns only the parent,
-the entry is malformed — check the ID has exactly one trailing lowercase letter
-and a trailing `:`.
-
-If decisions are only **contextually related** (same area, different concern), note
-them briefly and proceed normally.
-
-## When the work has no design implications
-
-If a question or change has no bearing on design decisions, acknowledge it so the
-gate doesn't keep nudging:
-
-```
-/decisions-md:decisions --ack-no-design "reason"
-```
+If decisions are only contextually related (same area, different concern), note them
+briefly and carry on.
 
 ## Proposing a new decision
 
-When you implement novel behavior or the user expresses a clear design choice:
+The bar is high, and the default answer is that no entry is needed. A decisions file
+that accumulates an entry per session stops being memory and becomes noise — every
+future read costs more and the rules that matter get harder to see.
 
-1. Validate format first: `/decisions-md:decisions --validate`.
-2. Search for near-duplicates with `/decisions-md:decisions --query <keywords>`.
-3. If a near-duplicate exists, offer to overwrite, merge, or keep both.
-4. If none exists, draft the entry and ask the user to confirm before writing it to
-   `DECISIONS.md`. Decisions document **intent**, not implementation detail — see
-   "What belongs in an entry" above before drafting.
+Propose one only when the work settled a user- or designer-facing rule that nothing on
+file already covers. Then:
+
+1. Search for near-duplicates: `/decisions-md:decisions --query <keywords>`.
+2. Name the existing decision you checked against when you propose.
+3. Draft the statement — a sentence or two, plus a brief `Context:` — and ask the user
+   to confirm before writing it.
+4. Check the format afterwards: `/decisions-md:decisions --lint`.

@@ -12,7 +12,7 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "\"$(command -v python3 || command -v python || command -v py)\" \"${CLAUDE_PLUGIN_ROOT}/hooks/decisions_gate.py\"", "timeout": 8 }
+          { "type": "command", "command": "\"$(command -v python3 || command -v python || command -v py)\" \"${CLAUDE_PLUGIN_ROOT}/hooks/decisions_serve.py\"", "timeout": 8 }
         ]
       }
     ],
@@ -21,14 +21,6 @@
         "matcher": "Write|Edit",
         "hooks": [
           { "type": "command", "command": "\"$(command -v python3 || command -v python || command -v py)\" \"${CLAUDE_PLUGIN_ROOT}/hooks/decisions_check.py\"", "timeout": 5 }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "\"$(command -v python3 || command -v python || command -v py)\" \"${CLAUDE_PLUGIN_ROOT}/hooks/decisions_binding_nudge.py\"", "timeout": 5 },
-          { "type": "command", "command": "\"$(command -v python3 || command -v python || command -v py)\" \"${CLAUDE_PLUGIN_ROOT}/hooks/decisions_nudge.py\"", "timeout": 5 }
         ]
       }
     ],

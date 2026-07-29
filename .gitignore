@@ -1,5 +1,5 @@
-# Plugin-owned runtime state (created in the CONSUMING project, never in the plugin repo)
-.decisions/
+# Plugin state lives in ~/.claude/decisions-md/, never in a project. A project's
+# .decisions/config.json is the project's own file and belongs in its repo.
 
 # Python bytecode
 __pycache__/

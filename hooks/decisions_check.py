@@ -1,129 +1,111 @@
 #!/usr/bin/env python3
 """
-PostToolUse (Write|Edit) hook: records edits to tracked files for decision nudging,
-and validates DECISIONS.md format on writes to it.
+PostToolUse (Write|Edit) hook.
 
-- Appends the edited tracked-file path to .decisions/cache/decisions-pending-edits.json
-- If the file IS DECISIONS.md, validates format and returns issues as additionalContext.
+Two jobs:
+  * Record which tracked files were edited this session, so the Stop check knows
+    whether anything happened that might not be written down yet.
+  * Lint DECISIONS.md the moment it is written, so a format mistake surfaces while
+    the entry is still in front of you.
 
-Inert when the project has no DECISIONS.md (no stray .decisions/cache is created).
+Inert when the project has no DECISIONS.md.
 """
 
 import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from decisions_common import (
-    setup_utf8_stdout, get_project_root, get_cache_dir, find_decisions_md,
-    load_config, get_tracked_extensions, is_within_project_root, DECISION_ID_RE,
+    setup_utf8_stdout, get_project_root, find_decisions_md, load_config, is_enabled,
+    get_tracked_extensions, is_within_project_root, relative_path, lint_decisions,
+    get_session_id, record_pending_edit, mark_decisions_touched,
 )
 
 setup_utf8_stdout()
 
-PENDING_EDITS_FILENAME = 'decisions-pending-edits.json'
+# A pre-existing file can carry dozens of warnings. Dumping all of them into context on
+# every single write to DECISIONS.md would cost more than the advice is worth, so the
+# hook shows a sample and points at the full report.
+MAX_INJECTED_ERRORS = 10
+MAX_INJECTED_WARNINGS = 5
 
 
-def get_pending_edits_path(project_root):
-    cache_dir = get_cache_dir(project_root)
-    os.makedirs(cache_dir, exist_ok=True)
-    return os.path.join(cache_dir, PENDING_EDITS_FILENAME)
+def build_lint_report(errors, warnings):
+    parts = []
+    if errors:
+        parts.append("[DECISIONS.md format errors -- fix these]")
+        parts.extend("  - %s" % e for e in errors[:MAX_INJECTED_ERRORS])
+        if len(errors) > MAX_INJECTED_ERRORS:
+            parts.append("  - (+%d more errors)" % (len(errors) - MAX_INJECTED_ERRORS))
+    if warnings:
+        parts.append("[DECISIONS.md warnings -- not blocking]")
+        parts.extend("  - %s" % w for w in warnings[:MAX_INJECTED_WARNINGS])
+        if len(warnings) > MAX_INJECTED_WARNINGS:
+            parts.append("  - (+%d more warnings)" % (len(warnings) - MAX_INJECTED_WARNINGS))
+    parts.append("Full report: /decisions-md:decisions --lint")
+    return "\n".join(parts)
 
 
-def append_pending_edit(project_root, file_path):
-    path = get_pending_edits_path(project_root)
+def is_decisions_file(file_path, decisions_md):
     try:
-        existing = []
-        if os.path.exists(path):
-            with open(path, 'r', encoding='utf-8') as f:
-                existing = json.load(f)
-        normalized = file_path.replace('\\', '/')
-        if normalized not in existing:
-            existing.append(normalized)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(existing, f)
-    except (OSError, json.JSONDecodeError):
-        return
-
-
-def validate_decisions(file_path):
-    """Returns list of format issue strings, or [] if clean."""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read().replace('\r\n', '\n').replace('\r', '\n').lstrip('﻿').strip()
-    except OSError:
-        return []
-
-    issues = []
-    lines = content.split('\n')
-    seen_ids = {}
-
-    for i, line in enumerate(lines):
-        m = re.match(rf'^({DECISION_ID_RE}):\s*(.+)$', line)
-        if not m:
-            continue
-        dec_id = m.group(1)
-
-        if dec_id in seen_ids:
-            issues.append(f'{dec_id}: duplicate ID (also at line {seen_ids[dec_id] + 1})')
-        seen_ids[dec_id] = i
-
-        if i + 1 >= len(lines) or not re.match(r'^Status:\s*.+', lines[i + 1]):
-            issues.append(f'{dec_id} (line {i + 1}): missing or malformed Status line')
-
-    return issues
-
-
-def is_decisions_file(file_path, project_root):
-    normalized = file_path.replace('\\', '/').lower()
-    # Mirror all search subdirs from decisions_common._DECISIONS_SEARCH_SUBDIRS
-    subdirs = ('', 'docs', 'support', 'design', 'decisions')
-    candidates = [
-        os.path.join(project_root, d, 'DECISIONS.md').replace('\\', '/').lower()
-        if d else os.path.join(project_root, 'DECISIONS.md').replace('\\', '/').lower()
-        for d in subdirs
-    ]
-    return any(normalized == c for c in candidates)
+        return (os.path.normcase(os.path.abspath(file_path))
+                == os.path.normcase(os.path.abspath(decisions_md)))
+    except (OSError, ValueError):
+        return False
 
 
 def main():
     try:
         input_data = json.load(sys.stdin)
-    except (json.JSONDecodeError, Exception):
+    except Exception:
         sys.exit(0)
 
-    tool_name = input_data.get('tool_name', '')
-    if tool_name not in ('Write', 'Edit'):
+    if input_data.get("tool_name", "") not in ("Write", "Edit"):
         sys.exit(0)
 
-    tool_input = input_data.get('tool_input', {})
-    file_path = tool_input.get('file_path', '')
-    if not file_path:
+    tool_input = input_data.get("tool_input")
+    file_path = tool_input.get("file_path") if isinstance(tool_input, dict) else None
+    if not isinstance(file_path, str) or not file_path:
         sys.exit(0)
 
-    project_root = get_project_root() or ''
-
-    # Decisions system is inert when the project has no DECISIONS.md.
-    if not find_decisions_md(project_root):
+    project_root = get_project_root() or ""
+    decisions_md = find_decisions_md(project_root)
+    if not decisions_md:
         sys.exit(0)
 
-    if is_decisions_file(file_path, project_root):
-        issues = validate_decisions(file_path)
-        if issues:
-            msg = '[DECISIONS.md format issues]\n' + '\n'.join(f'  - {i}' for i in issues)
-            msg += '\nFix these before continuing.'
-            output = {'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext': msg}}
-            print(json.dumps(output))
+    config = load_config(project_root)
+    if not is_enabled(config):
         sys.exit(0)
 
-    ext = os.path.splitext(file_path)[1].lower()
-    if (ext in get_tracked_extensions(load_config(project_root))
-            and is_within_project_root(file_path, project_root)):
-        append_pending_edit(project_root, file_path)
+    session_id = input_data.get("session_id") or get_session_id(project_root)
+
+    if is_decisions_file(file_path, decisions_md):
+        # Tell the Stop check this session already went and updated the file, so it
+        # does not ask again. This is session-scoped and exact; asking git whether
+        # DECISIONS.md is dirty answered a different question -- any stray uncommitted
+        # edit from last week counted, and silently cancelled the check.
+        if session_id:
+            mark_decisions_touched(project_root, session_id)
+        errors, warnings = lint_decisions(decisions_md)
+        if errors or warnings:
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": build_lint_report(errors, warnings),
+            }}))
+        sys.exit(0)
+
+    if os.path.splitext(file_path)[1].lower() not in get_tracked_extensions(config):
+        sys.exit(0)
+    if not is_within_project_root(file_path, project_root):
+        sys.exit(0)
+
+    if session_id:
+        record_pending_edit(project_root, session_id,
+                            relative_path(file_path, project_root))
 
     sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

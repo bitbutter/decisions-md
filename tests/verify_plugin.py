@@ -1,38 +1,36 @@
 #!/usr/bin/env python3
 """Synthetic-payload harness for the decisions-md plugin.
 
-Creates a temporary consuming project, drives each hook with crafted JSON payloads,
-and asserts the expected behaviour without requiring a live Claude Code session.
+Creates throwaway projects, drives each hook with crafted JSON payloads, and asserts
+the behaviour -- no live Claude Code session needed. State is redirected to a temp
+directory via DECISIONS_STATE_DIR, so a run cannot touch your real state.
 
-Usage:
-    python3 tests/verify_plugin.py            # run all checks
-    python3 tests/verify_plugin.py -v         # verbose
+    python3 tests/verify_plugin.py         run all checks
+    python3 tests/verify_plugin.py -v      show every subprocess result
 
-Exit code 0 = all checks passed.
-Exit code 1 = one or more checks failed.
+Exit 0 = all checks passed. Exit 1 = at least one failed.
 """
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
 HOOKS_DIR = PLUGIN_ROOT / "hooks"
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 
+sys.path.insert(0, str(HOOKS_DIR))
+from decisions_common import get_state_dir  # noqa: E402  (path set above)
+
 
 def _configure_utf8_output():
-    """Force UTF-8 on our own stdout/stderr before printing anything.
-
-    Windows defaults a redirected stream to cp1252, which cannot encode the section
-    headers below -- the harness died mid-run with UnicodeEncodeError rather than
-    reporting a result. The plugin's own entry points already do this; the harness
-    that tests them did not.
-    """
+    """Windows defaults a redirected stream to cp1252, which cannot encode the section
+    headers below -- the harness used to die mid-run rather than report a result."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
@@ -43,17 +41,16 @@ def _configure_utf8_output():
 _configure_utf8_output()
 
 DECISIONS_MD = """\
-DEC-ARCH-001: Use a layered architecture with clear separation of concerns.
-Status: Active (2026-01-01)
+DEC-INPUT-001: Jumping is bound to the A button.
+Context: Face buttons are reserved for actions used under pressure.
 
-DEC-ARCH-002: All public APIs must be versioned from the start.
-Status: Active (2026-01-01)
+DEC-INPUT-002: Holding the jump button does not increase jump height.
 
-DEC-UI-001: The UI layer must not contain business logic.
-Status: Active (2026-01-01)
+DEC-RENDER-001: The game renders at a fixed internal resolution and scales up.
 """
 
 SESSION_ID = "test-session-abc123"
+STATE_ROOT = None  # set in main()
 
 _passes = 0
 _failures = 0
@@ -62,443 +59,684 @@ _verbose = "-v" in sys.argv
 
 def _log(msg):
     if _verbose:
-        print(f"    {msg}", flush=True)
+        print("    %s" % msg, flush=True)
 
 
 def check(name, condition, detail=""):
     global _passes, _failures
     if condition:
-        print(f"  PASS  {name}", flush=True)
+        print("  PASS  %s" % name, flush=True)
         _passes += 1
     else:
-        print(f"  FAIL  {name}", flush=True)
+        print("  FAIL  %s" % name, flush=True)
         if detail:
-            print(f"        {detail}", flush=True)
+            print("        %s" % str(detail)[:800], flush=True)
         _failures += 1
 
 
-def run_hook(hook_file, payload, env=None):
-    """Run a hook script with a JSON payload on stdin. Returns (returncode, stdout, stderr)."""
-    merged_env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
-    if env:
-        merged_env.update(env)
+def _env(project, session_id=None, extra=None):
+    env = {
+        **os.environ,
+        "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
+        "CLAUDE_PROJECT_DIR": str(project),
+        "DECISIONS_STATE_DIR": str(STATE_ROOT),
+    }
+    if session_id:
+        env["DECISIONS_SESSION_ID"] = session_id
+    if extra:
+        env.update(extra)
+    return env
+
+
+def run_hook(hook_file, payload, env):
     result = subprocess.run(
         [sys.executable, str(HOOKS_DIR / hook_file)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        env=merged_env,
+        input=json.dumps(payload), capture_output=True, text=True, env=env,
     )
-    _log(f"{hook_file} rc={result.returncode} stdout={result.stdout!r} stderr={result.stderr!r}")
+    _log("%s rc=%s out=%r err=%r" % (hook_file, result.returncode, result.stdout, result.stderr))
     return result.returncode, result.stdout, result.stderr
 
 
-def run_cli(args, env=None):
-    """Run query_decisions.py with given args list. Returns (returncode, stdout, stderr)."""
-    merged_env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
-    if env:
-        merged_env.update(env)
+def run_cli(args, env):
     result = subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / "query_decisions.py")] + args,
-        capture_output=True,
-        text=True,
-        env=merged_env,
+        capture_output=True, text=True, env=env,
     )
-    _log(f"cli {args} rc={result.returncode} stdout={result.stdout!r}")
+    _log("cli %s rc=%s out=%r" % (args, result.returncode, result.stdout))
     return result.returncode, result.stdout, result.stderr
 
 
-def setup_project(tmp_dir, write_decisions=True, config=None):
-    """Create a minimal consuming project in a unique subdir of tmp_dir and return its path."""
-    project = Path(tempfile.mkdtemp(dir=tmp_dir))
-    if write_decisions:
-        (project / "DECISIONS.md").write_text(DECISIONS_MD, encoding="utf-8")
+def setup_project(tmp, decisions=DECISIONS_MD, config=None, tree=("main.gd",)):
+    project = Path(tempfile.mkdtemp(dir=tmp))
+    if decisions is not None:
+        (project / "DECISIONS.md").write_text(decisions, encoding="utf-8")
     if config is not None:
-        decisions_dir = project / ".decisions"
-        decisions_dir.mkdir()
-        (decisions_dir / "config.json").write_text(json.dumps(config), encoding="utf-8")
-    # Tracked test file
-    src = project / "main.gd"
-    src.write_text("# godot source", encoding="utf-8")
+        (project / ".decisions").mkdir()
+        (project / ".decisions" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    for rel in tree:
+        target = project / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# source", encoding="utf-8")
     return project
 
 
-# ── Section 1: manifest ────────────────────────────────────────────────────────
+def write_payload(project, rel, session_id=SESSION_ID, tool="Write"):
+    return {"tool_name": tool, "tool_input": {"file_path": str(project / rel)},
+            "session_id": session_id}
+
+
+def start_session(project, session_id=SESSION_ID):
+    """Drive SessionStart the way Claude Code would, so state exists."""
+    return run_hook("decisions_session_start.py", {"session_id": session_id},
+                    _env(project, session_id))
+
+
+def _session_dir(project, session_id=SESSION_ID):
+    """This project's session state dir -- resolved the way the plugin resolves it.
+
+    Globbing the state root instead would pick up whichever earlier test project
+    happened to sort first and quietly assert against the wrong one.
+    """
+    os.environ["DECISIONS_STATE_DIR"] = str(STATE_ROOT)
+    return Path(get_state_dir(str(project))) / ("s-" + session_id)
+
+
+def pending_edits(project, session_id=SESSION_ID):
+    d = _session_dir(project, session_id) / "pending"
+    if not d.is_dir():
+        return []
+    return sorted(p.read_text(encoding="utf-8").strip() for p in d.iterdir())
+
+
+def served_areas(project, session_id=SESSION_ID):
+    d = _session_dir(project, session_id) / "served"
+    return sorted(p.name for p in d.iterdir()) if d.is_dir() else []
+
+
+def project_polluted(project):
+    """Anything the plugin should never create inside a consuming project."""
+    stray = []
+    if (project / ".decisions" / "cache").exists():
+        stray.append(".decisions/cache")
+    if (project / "logs").exists():
+        stray.append("logs/")
+    return stray
+
+
+# ── 1. Manifest ───────────────────────────────────────────────────────────────
 
 def test_manifest(tmp):
     print("\n[1] Manifest")
     pj = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text())
-    check("plugin.json: name is 'decisions-md'", pj.get("name") == "decisions-md")
-    check("plugin.json: version present", bool(pj.get("version")))
-    check("plugin.json: description present", bool(pj.get("description")))
-    check("plugin.json: license is MIT", pj.get("license") == "MIT")
+    mj = json.loads((PLUGIN_ROOT / ".claude-plugin" / "marketplace.json").read_text())
+    check("plugin.json: name", pj.get("name") == "decisions-md")
+    check("plugin.json: license MIT", pj.get("license") == "MIT")
+    check("versions agree", pj.get("version") == mj["plugins"][0].get("version"),
+          "%s vs %s" % (pj.get("version"), mj["plugins"][0].get("version")))
 
-    hj = json.loads((HOOKS_DIR / "hooks.json").read_text())
-    hooks = hj.get("hooks", {})
-    for event in ("SessionStart", "PreToolUse", "PostToolUse", "UserPromptSubmit", "PreCompact", "Stop"):
-        check(f"hooks.json: declares {event}", event in hooks)
+    hooks = json.loads((HOOKS_DIR / "hooks.json").read_text()).get("hooks", {})
+    for event in ("SessionStart", "PreToolUse", "PostToolUse", "PreCompact", "Stop"):
+        check("hooks.json declares %s" % event, event in hooks)
+    check("hooks.json no longer runs on every prompt", "UserPromptSubmit" not in hooks)
+
+    referenced = []
+    for entries in hooks.values():
+        for entry in entries:
+            for h in entry.get("hooks", []):
+                referenced.append(h["command"].split("hooks/")[-1].rstrip('"'))
+    missing = [r for r in referenced if not (HOOKS_DIR / r).exists()]
+    check("every hook script referenced exists", not missing, missing)
+
+    on_disk = {p.name for p in HOOKS_DIR.glob("decisions_*.py")} - {"decisions_common.py"}
+    check("no orphan hook scripts on disk", on_disk == set(referenced),
+          "on disk=%s referenced=%s" % (sorted(on_disk), sorted(referenced)))
 
 
-# ── Section 2: portability (no DECISIONS.md → all hooks no-op) ────────────────
+# ── 2. No DECISIONS.md → the plugin does nothing, anywhere ────────────────────
 
 def test_portability(tmp):
-    print("\n[2] Portability — no DECISIONS.md")
-    project = setup_project(tmp, write_decisions=False)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID}
+    print("\n[2] Portability — project without DECISIONS.md")
+    project = setup_project(tmp, decisions=None)
+    env = _env(project, SESSION_ID)
 
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(project / "main.gd")}, "session_id": SESSION_ID}
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
-    check("gate: no-op when no DECISIONS.md (exit 0)", rc == 0)
-    check("gate: no block output when no DECISIONS.md", "DECISIONS GATE" not in out)
+    rc, out, err = run_hook("decisions_serve.py", write_payload(project, "main.gd"), env)
+    check("serve: exits 0", rc == 0)
+    check("serve: says nothing", not out.strip() and not err.strip())
 
-    rc, out, _ = run_hook("decisions_binding_nudge.py", {}, env)
-    check("binding_nudge: no-op when no DECISIONS.md (exit 0)", rc == 0)
-    check("binding_nudge: empty output when no DECISIONS.md", out.strip() == "")
+    rc, out, _ = run_hook("decisions_session_start.py", {"session_id": SESSION_ID}, env)
+    check("session_start: exits 0", rc == 0)
+    check("session_start: injects nothing", not out.strip())
+
+    rc, out, _ = run_hook("decisions_check.py", write_payload(project, "main.gd"), env)
+    check("check: exits 0", rc == 0)
+    rc, out, _ = run_hook("decisions_stop_check.py", {"session_id": SESSION_ID}, env)
+    check("stop: exits 0 and says nothing", rc == 0 and not out.strip())
+
+    check("nothing created inside the project", not project_polluted(project),
+          project_polluted(project))
 
 
-# ── Section 3: SessionStart persists session id ───────────────────────────────
+# ── 3. State never lands in the project ───────────────────────────────────────
+
+def test_state_location(tmp):
+    print("\n[3] State location")
+    project = setup_project(tmp)
+    env = _env(project, SESSION_ID)
+
+    start_session(project)
+    run_hook("decisions_serve.py", write_payload(project, "main.gd"), env)
+    run_hook("decisions_check.py", write_payload(project, "main.gd"), env)
+    run_cli(["--query", "jump"], env)
+
+    check("no .decisions/cache in the project", not (project / ".decisions" / "cache").exists())
+    check("no logs/ in the project", not (project / "logs").exists())
+    check("nothing written into the plugin dir",
+          not (PLUGIN_ROOT / ".decisions").exists())
+
+    keys = list(Path(STATE_ROOT).glob("*/current-session-id"))
+    check("session id persisted outside the project", len(keys) >= 1)
+
+
+# ── 4. SessionStart ───────────────────────────────────────────────────────────
 
 def test_session_start(tmp):
-    print("\n[3] SessionStart")
+    print("\n[4] SessionStart")
     project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project)}
-    cache_dir = project / ".decisions" / "cache"
+    rc, out, _ = start_session(project)
+    check("exits 0", rc == 0)
+    ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    check("injects the orientation block", "[DECISIONS]" in ctx)
+    check("orientation states the count", "3 decisions" in ctx, ctx)
+    check("orientation names the areas", "input:2" in ctx and "render:1" in ctx, ctx)
 
-    payload = {"session_id": SESSION_ID}
-    rc, _, _ = run_hook("decisions_session_start.py", payload, env)
-    check("session_start: exits 0", rc == 0)
-
-    sid_file = cache_dir / "current-session-id"
-    check("session_start: wrote current-session-id", sid_file.exists())
-    check("session_start: correct session id", sid_file.read_text().strip() == SESSION_ID)
-
-    # Re-arm: place a stop-hook-fired flag and verify it is removed
-    flag = cache_dir / "stop-hook-fired-this-session"
-    flag.touch()
-    run_hook("decisions_session_start.py", payload, env)
-    check("session_start: re-arms stop gate (removes flag)", not flag.exists())
-
-    # Session id must land in PROJECT, not plugin dir
-    plugin_cache = PLUGIN_ROOT / ".decisions" / "cache"
-    check("session_start: writes to project cache, not plugin dir",
-          not plugin_cache.exists() or not (plugin_cache / "current-session-id").exists())
+    # A second start resets what the previous session had served.
+    env = _env(project, SESSION_ID)
+    run_hook("decisions_serve.py", write_payload(project, "main.gd"), env)
+    start_session(project)
+    rc, _, err = run_hook("decisions_serve.py", write_payload(project, "input_handler.gd"), env)
+    check("resets served areas on a new session", rc == 2, err)
 
 
-# ── Section 4: gate — locked before consult ───────────────────────────────────
+# ── 5. Serving decisions ──────────────────────────────────────────────────────
 
-def test_gate_locked(tmp):
-    print("\n[4] Gate — locked (no prior consult)")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID}
+def test_serve(tmp):
+    print("\n[5] Serve — relevant decisions, once per area")
+    project = setup_project(tmp, tree=("input_handler.gd", "render_pass.gd", "audio_bus.gd"))
+    env = _env(project, SESSION_ID)
+    start_session(project)
 
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(project / "main.gd")}, "session_id": SESSION_ID}
-    rc, out, err = run_hook("decisions_gate.py", payload, env)
-    check("gate: blocks (exit 2)", rc == 2)
-    # The block message MUST go to stderr: for an exit-2 PreToolUse block Claude Code
-    # feeds only stderr back to the model and discards stdout, so a stdout message
-    # surfaces as the opaque "hook error: [...]: No stderr output".
-    check("gate: block message present on stderr", "DECISIONS GATE" in err)
-    check("gate: block message not on stdout", "DECISIONS GATE" not in out)
+    rc, out, err = run_hook("decisions_serve.py", write_payload(project, "input_handler.gd"), env)
+    check("blocks once to deliver (exit 2)", rc == 2, err)
+    check("delivers on stderr, not stdout", "[DECISIONS]" in err and "[DECISIONS]" not in out)
+    check("serves the matching area", "DEC-INPUT-001" in err and "DEC-INPUT-002" in err, err)
+    check("does not serve unrelated areas", "DEC-RENDER-001" not in err, err)
+    check("tells the model what to do next", "re-run your edit" in err.lower(), err)
+    check("statement only, no Context noise", "Face buttons are reserved" not in err, err)
 
+    rc, out, err = run_hook("decisions_serve.py", write_payload(project, "input_handler.gd"), env)
+    check("silent on the second edit in the same area", rc == 0 and not err.strip(), err)
 
-# ── Section 5: gate — unlock via CLI ──────────────────────────────────────────
+    rc, out, err = run_hook("decisions_serve.py", write_payload(project, "render_pass.gd"), env)
+    check("serves a different area when you move to it", rc == 2 and "DEC-RENDER-001" in err, err)
 
-def test_gate_unlock(tmp):
-    print("\n[5] Gate — unlock via query CLI")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID}
-
-    # Run CLI to write unlock marker
-    rc, out, _ = run_cli(["--query", "architecture"], env)
-    check("cli: exit 0 after query", rc == 0)
-    check("cli: found decisions", "DECISIONS FOUND" in out or "ARCH" in out)
-
-    marker = project / ".decisions" / "cache" / f"decisions-checked-{SESSION_ID}"
-    check("cli: wrote unlock marker in project (not plugin dir)", marker.exists())
-    plugin_marker = PLUGIN_ROOT / ".decisions" / "cache" / f"decisions-checked-{SESSION_ID}"
-    check("cli: did NOT write unlock marker in plugin dir", not plugin_marker.exists())
-
-    # Gate should now pass
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(project / "main.gd")}, "session_id": SESSION_ID}
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
-    check("gate: allows after unlock (exit 0)", rc == 0)
-    check("gate: no block message after unlock", "DECISIONS GATE" not in out)
+    rc, out, err = run_hook("decisions_serve.py", write_payload(project, "audio_bus.gd"), env)
+    check("silent for a path no decision covers", rc == 0 and not err.strip(), err)
 
 
-# ── Section 6: gate — exempt paths never blocked ─────────────────────────────
+def test_serve_scope(tmp):
+    print("\n[6] Serve — what it leaves alone")
+    project = setup_project(tmp, tree=("input_handler.gd", "notes.txt", "tools/input_build.py",
+                                       "src/tools/input_thing.py", ".claude/input_hook.py"))
+    env = _env(project, SESSION_ID)
+    start_session(project)
 
-def test_gate_exempt(tmp):
-    print("\n[6] Gate — exempt paths")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-exempt"}
+    rc, _, _ = run_hook("decisions_serve.py", write_payload(project, "DECISIONS.md"), env)
+    check("DECISIONS.md itself", rc == 0)
+    rc, _, _ = run_hook("decisions_serve.py", write_payload(project, "notes.txt"), env)
+    check("untracked extension", rc == 0)
+    rc, _, _ = run_hook("decisions_serve.py", write_payload(project, "tools/input_build.py"), env)
+    check("exempt prefix tools/", rc == 0)
+    # A dot-prefixed default exemption: a naive lstrip("./") would turn ".claude/"
+    # into "claude/" and stop exempting this at all.
+    rc, _, _ = run_hook("decisions_serve.py", write_payload(project, ".claude/input_hook.py"), env)
+    check("exempt prefix .claude/ keeps its leading dot", rc == 0)
 
-    # DECISIONS.md itself is always exempt
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(project / "DECISIONS.md")}, "session_id": SESSION_ID + "-exempt"}
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
-    check("gate: DECISIONS.md itself is exempt (exit 0)", rc == 0)
+    # The old substring match exempted anything with "tools/" ANYWHERE in the path.
+    rc, _, err = run_hook("decisions_serve.py", write_payload(project, "src/tools/input_thing.py"), env)
+    check("src/tools/ is NOT exempt (prefix match, not substring)", rc == 2, err)
 
-    # .claude/ prefix is exempt by default
-    claude_dir = project / ".claude"
-    claude_dir.mkdir()
-    payload["tool_input"]["file_path"] = str(claude_dir / "settings.json")
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
-    check("gate: .claude/ path is exempt (exit 0)", rc == 0)
-
-    # Untracked extension (.txt) is not blocked
-    payload["tool_input"]["file_path"] = str(project / "notes.txt")
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
-    check("gate: untracked extension not blocked (exit 0)", rc == 0)
-
-
-# ── Section 7: check → nudge pipeline ────────────────────────────────────────
-
-def test_check_nudge(tmp):
-    print("\n[7] PostToolUse check → UserPromptSubmit nudge")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project)}
-
-    # PostToolUse records the edit
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(project / "main.gd")}, "session_id": SESSION_ID}
-    rc, _, _ = run_hook("decisions_check.py", payload, env)
-    check("check: exits 0", rc == 0)
-
-    pending_file = project / ".decisions" / "cache" / "decisions-pending-edits.json"
-    check("check: recorded edit in pending-edits.json", pending_file.exists())
-    pending = json.loads(pending_file.read_text())
-    check("check: correct file recorded", any("main.gd" in p for p in pending))
-
-    # Nudge fires and clears the list
-    rc, out, _ = run_hook("decisions_nudge.py", {}, env)
-    check("nudge: exits 0", rc == 0)
-    check("nudge: emits reminder", "decisions-nudge" in out or "tracked files" in out)
-    check("nudge: clears pending-edits.json", not pending_file.exists())
-
-    # Second nudge is silent (list is clear)
-    rc, out, _ = run_hook("decisions_nudge.py", {}, env)
-    check("nudge: silent on second call (no pending)", out.strip() == "")
+    outside = Path(tempfile.mkdtemp(dir=tmp)) / "input_other.gd"
+    outside.write_text("# another repo", encoding="utf-8")
+    rc, _, _ = run_hook("decisions_serve.py",
+                        {"tool_name": "Write", "tool_input": {"file_path": str(outside)},
+                         "session_id": SESSION_ID}, env)
+    check("a file outside the project root", rc == 0)
 
 
-# ── Section 8: DECISIONS.md format validation ─────────────────────────────────
+def test_serve_config(tmp):
+    print("\n[7] Serve — config")
+    project = setup_project(tmp, config={"tracked_extensions": [".xyz"]},
+                            tree=("input_handler.gd", "input_data.xyz"))
+    env = _env(project, SESSION_ID)
+    start_session(project)
+    rc, _, _ = run_hook("decisions_serve.py", write_payload(project, "input_handler.gd"), env)
+    check("custom tracked_extensions drops .gd", rc == 0)
+    rc, _, err = run_hook("decisions_serve.py", write_payload(project, "input_data.xyz"), env)
+    check("custom tracked_extensions adds .xyz", rc == 2, err)
 
-def test_decisions_validation(tmp):
-    print("\n[8] DECISIONS.md format validation")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID}
+    # area_map pins a path whose name says nothing about its area.
+    project = setup_project(tmp, config={"area_map": {"gfx/**": "render"}},
+                            tree=("gfx/pipeline.gd",))
+    env = _env(project, SESSION_ID + "-map")
+    start_session(project, SESSION_ID + "-map")
+    rc, _, err = run_hook("decisions_serve.py",
+                          write_payload(project, "gfx/pipeline.gd", SESSION_ID + "-map"), env)
+    check("area_map routes an unguessable path", rc == 2 and "DEC-RENDER-001" in err, err)
 
-    # Valid DECISIONS.md → --validate passes
-    rc, out, _ = run_cli(["--validate"], env)
-    check("cli --validate: passes on valid DECISIONS.md (exit 0)", rc == 0)
-    check("cli --validate: reports OK", "VALIDATION OK" in out)
+    project = setup_project(tmp, config={"enabled": False}, tree=("input_handler.gd",))
+    env = _env(project, SESSION_ID + "-off")
+    rc, out, _ = run_hook("decisions_session_start.py",
+                          {"session_id": SESSION_ID + "-off"}, env)
+    check("enabled:false silences SessionStart", rc == 0 and not out.strip())
+    rc, _, err = run_hook("decisions_serve.py",
+                          write_payload(project, "input_handler.gd", SESSION_ID + "-off"), env)
+    check("enabled:false silences the serve hook", rc == 0 and not err.strip(), err)
+    rc, out, _ = run_hook("decisions_stop_check.py", {"session_id": SESSION_ID + "-off"}, env)
+    check("enabled:false silences the Stop check", rc == 0 and not out.strip())
 
-    # Corrupt DECISIONS.md → --validate fails
+
+# ── 8. PostToolUse ────────────────────────────────────────────────────────────
+
+def test_check(tmp):
+    print("\n[8] PostToolUse check")
+    project = setup_project(tmp, tree=("input_handler.gd",))
+    env = _env(project, SESSION_ID)
+    start_session(project)
+
+    rc, _, _ = run_hook("decisions_check.py", write_payload(project, "input_handler.gd"), env)
+    check("exits 0", rc == 0)
+    check("records the edit", pending_edits(project) == ["input_handler.gd"],
+          pending_edits(project))
+
+    rc, _, _ = run_hook("decisions_check.py", write_payload(project, "notes.txt"), env)
+    check("ignores untracked files", pending_edits(project) == ["input_handler.gd"],
+          pending_edits(project))
+
     bad = project / "DECISIONS.md"
-    bad.write_text("DEC-ARCH-003: Missing status line.\n\nSome other text.\n", encoding="utf-8")
-    rc, out, _ = run_cli(["--validate"], env)
-    check("cli --validate: fails on malformed DECISIONS.md (exit 1)", rc == 1)
-    check("cli --validate: reports issue", "VALIDATION ISSUES" in out or "missing" in out.lower())
+    bad.write_text("DEC-INPUT-001: A rule.\nStatus: Active (2026-01-01)\n", encoding="utf-8")
+    rc, out, _ = run_hook("decisions_check.py", write_payload(project, "DECISIONS.md"), env)
+    check("lints DECISIONS.md when it is written", "format errors" in out, out)
+    check("names the Status line as the problem", "Status" in out, out)
 
 
-# ── Section 9: binding nudge and precompact injection ────────────────────────
+# ── 9. Stop check ─────────────────────────────────────────────────────────────
 
-def test_binding_injection(tmp):
-    print("\n[9] Binding nudge + PreCompact injection")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project)}
+def test_stop(tmp):
+    print("\n[9] Stop check")
+    project = setup_project(tmp, tree=("input_handler.gd", "audio_bus.gd"))
+    env = _env(project, SESSION_ID)
+    start_session(project)
 
-    rc, out, _ = run_hook("decisions_binding_nudge.py", {}, env)
-    check("binding_nudge: exits 0", rc == 0)
-    data = json.loads(out)
-    ctx = data.get("hookSpecificOutput", {}).get("additionalContext", "")
-    check("binding_nudge: DECISIONS-BINDING in output", "DECISIONS-BINDING" in ctx)
-    check("binding_nudge: overview in output", "decisions" in ctx.lower())
+    # Edits inside a covered area: the rules already exist, so stay quiet.
+    run_hook("decisions_check.py", write_payload(project, "input_handler.gd"), env)
+    rc, out, _ = run_hook("decisions_stop_check.py", {"session_id": SESSION_ID}, env)
+    check("silent when the edited area already has decisions", rc == 0 and not out.strip(), out)
 
-    rc, out, _ = run_hook("decisions_precompact.py", {}, env)
-    check("precompact: exits 0", rc == 0)
-    data = json.loads(out)
-    instr = data.get("hookSpecificOutput", {}).get("customInstructions", "")
-    check("precompact: DECISIONS-BINDING in customInstructions", "DECISIONS-BINDING" in instr)
+    # Edits where nothing is on file: worth asking about, once.
+    run_hook("decisions_check.py", write_payload(project, "audio_bus.gd"), env)
+    rc, out, _ = run_hook("decisions_stop_check.py", {"session_id": SESSION_ID}, env)
+    data = json.loads(out) if out.strip() else {}
+    reason = data.get("hookSpecificOutput", {}).get("reason", "")
+    check("blocks once for uncovered work",
+          data.get("hookSpecificOutput", {}).get("decision") == "block", out)
+    check("default answer is 'no entry needed'", "no entry is needed" in reason.lower(), reason)
+    check("names the uncovered file", "audio_bus.gd" in reason, reason)
 
+    run_hook("decisions_check.py", write_payload(project, "audio_bus.gd"), env)
+    rc, out, _ = run_hook("decisions_stop_check.py", {"session_id": SESSION_ID}, env)
+    check("fires at most once per session", not out.strip(), out)
 
-# ── Section 10: stop hook — block-once ───────────────────────────────────────
-
-def test_stop_hook(tmp):
-    print("\n[10] Stop hook — block-once")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project)}
-    cache_dir = project / ".decisions" / "cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    # Seed a pending edit
-    (cache_dir / "decisions-pending-edits.json").write_text(
-        json.dumps([str(project / "main.gd")]), encoding="utf-8"
-    )
-
-    payload = {"stop_hook_active": False}
-    rc, out, _ = run_hook("decisions_stop_check.py", payload, env)
-    check("stop: exits 0", rc == 0)
-    if out.strip():
-        data = json.loads(out)
-        decision = data.get("hookSpecificOutput", {}).get("decision", "")
-        check("stop: blocks on first fire", decision == "block")
-    else:
-        check("stop: blocks on first fire", False, "no output from stop hook")
-
-    flag = cache_dir / "stop-hook-fired-this-session"
-    check("stop: wrote once-per-session flag", flag.exists())
-    check("stop: cleared pending-edits", not (cache_dir / "decisions-pending-edits.json").exists())
-
-    # Second fire is silent
-    rc, out, _ = run_hook("decisions_stop_check.py", payload, env)
-    check("stop: silent on second fire (flag present)", out.strip() == "")
-
-    # stop_hook_active guard
-    flag.unlink(missing_ok=True)
-    (cache_dir / "decisions-pending-edits.json").write_text(json.dumps(["x.gd"]), encoding="utf-8")
-    rc, out, _ = run_hook("decisions_stop_check.py", {"stop_hook_active": True}, env)
-    check("stop: no-op when stop_hook_active=True", out.strip() == "")
+    rc, out, _ = run_hook("decisions_stop_check.py",
+                          {"session_id": SESSION_ID, "stop_hook_active": True}, env)
+    check("no-op when stop_hook_active", not out.strip(), out)
 
 
-# ── Section 11: per-project config override ───────────────────────────────────
+# ── 10. Lint ──────────────────────────────────────────────────────────────────
 
-def test_config_override(tmp):
-    print("\n[11] Per-project config override")
-
-    # .gd becomes untracked; .xyz becomes tracked
-    config = {"tracked_extensions": [".xyz"], "exempt_paths": ["DECISIONS.md", ".decisions/"]}
-    project = setup_project(tmp, config=config)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-cfg"}
-    sid = SESSION_ID + "-cfg"
-
-    # .gd is NOT tracked → gate passes without unlock
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(project / "main.gd")}, "session_id": sid}
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
-    check("config: untracked extension (.gd) not blocked", rc == 0, out)
-
-    # .xyz IS tracked → gate blocks
-    payload["tool_input"]["file_path"] = str(project / "data.xyz")
-    rc, out, _ = run_hook("decisions_gate.py", payload, env)
-    check("config: custom tracked extension (.xyz) blocked (exit 2)", rc == 2, out)
-
-
-# ── Section 12: multi-word --query via nargs ──────────────────────────────────
-
-def test_multiword_query(tmp):
-    print("\n[12] Multi-word --query (nargs fix)")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-mq"}
-
-    # Two separate words — would have failed with old nargs=None
-    rc, out, _ = run_cli(["--query", "layered", "architecture"], env)
-    check("cli: --query multi-word exits 0", rc == 0)
-    check("cli: --query multi-word finds results", "ARCH" in out or "DECISIONS FOUND" in out)
-
-
-# ── Section 13: broadened default tracked extensions ──────────────────────────
-
-def test_default_extensions(tmp):
-    print("\n[13] Default tracked extensions (beyond Godot)")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-ext"}
-
-    # No config.json -> defaults apply. Each of these must be gated out of the box.
-    for ext in (".py", ".ts", ".rs", ".sh"):
-        target = project / f"thing{ext}"
-        target.write_text("source", encoding="utf-8")
-        payload = {"tool_name": "Write", "tool_input": {"file_path": str(target)},
-                   "session_id": SESSION_ID + "-ext"}
-        rc, _, _ = run_hook("decisions_gate.py", payload, env)
-        check(f"gate: default set blocks {ext} (exit 2)", rc == 2)
-
-    # A type that is deliberately NOT in the default set stays ungated.
-    doc = project / "notes.txt"
-    doc.write_text("notes", encoding="utf-8")
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(doc)},
-               "session_id": SESSION_ID + "-ext"}
-    rc, _, _ = run_hook("decisions_gate.py", payload, env)
-    check("gate: default set ignores .txt (exit 0)", rc == 0)
-
-
-# ── Section 14: edits outside the project root are not this project's business ─
-
-def test_outside_project_root(tmp):
-    print("\n[14] Files outside the project root")
-    project = setup_project(tmp)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-out"}
-
-    # A tracked-type file that lives OUTSIDE the gated project (e.g. another repo).
-    outside = Path(tempfile.mkdtemp(dir=tmp)) / "other.gd"
-    outside.write_text("# another project's source", encoding="utf-8")
-    payload = {"tool_name": "Write", "tool_input": {"file_path": str(outside)},
-               "session_id": SESSION_ID + "-out"}
-
-    rc, _, _ = run_hook("decisions_gate.py", payload, env)
-    check("gate: does not block an edit outside the project root", rc == 0)
-
-    # ...and it must not be recorded as this project's pending decision-capture,
-    # which would false-block this project's Stop gate.
-    run_hook("decisions_check.py", payload, env)
-    pending = project / ".decisions" / "cache" / "decisions-pending-edits.json"
-    recorded = json.loads(pending.read_text()) if pending.exists() else []
-    check("check: does not record an outside edit as pending", recorded == [])
-
-
-# ── Section 15: suffix decision IDs (DEC-AREA-NNNb/c/d) ───────────────────────
-
-SUFFIX_DECISIONS_MD = """\
+LEGACY_MD = """\
 DEC-INPUT-007: Jumping is bound to the A button.
 Status: Active (2026-01-01)
 
 DEC-INPUT-007d: OVERRIDES the binding clause of DEC-INPUT-007. Jumping is bound to B.
 Status: Active (overrides DEC-INPUT-007 binding clause)
+
+DEC-INPUT-007: A duplicate ID.
+Status: Retired (2026-02-02)
+"""
+
+BLOATED_MD = """\
+DEC-UI-001: The pause menu opens with Start and closes with Start or B.
+
+DEC-UI-002: The pause menu opens with the Start button and closes with Start or B.
+
+DEC-UI-003: The inventory grid is eight columns wide and the player_inventory_grid()
+call refreshes it whenever an item is added, removed, moved, dropped, equipped,
+unequipped, split, merged, sorted, filtered, favourited, marked, unmarked, compared,
+previewed, repaired, upgraded, dismantled, or otherwise touched by any subsystem at
+all in any circumstance whatsoever including during a save or load operation.
+Context: One.
+Context: Two.
+Context: Three.
+Context: Four.
+Context: Five.
 """
 
 
-def test_suffix_ids(tmp):
-    print("\n[15] Suffix decision IDs")
-    project = Path(tempfile.mkdtemp(dir=tmp))
-    (project / "DECISIONS.md").write_text(SUFFIX_DECISIONS_MD, encoding="utf-8")
-    env = {"CLAUDE_PROJECT_DIR": str(project), "DECISIONS_SESSION_ID": SESSION_ID + "-sfx"}
+def test_lint(tmp):
+    print("\n[10] Lint")
+    project = setup_project(tmp, decisions=LEGACY_MD)
+    env = _env(project, SESSION_ID)
 
-    # The suffix entry must be its own decision, not absorbed into the parent block.
-    rc, out, _ = run_cli(["--query", "007d"], env)
-    check("cli: --query 007d exits 0", rc == 0)
-    check("cli: --query 007d surfaces the suffix entry", "DEC-INPUT-007d" in out)
+    rc, out, _ = run_cli(["--lint"], env)
+    check("legacy file fails (exit 1)", rc == 1, out)
+    check("flags Status lines", "Status:" in out and "no longer part of the format" in out, out)
+    check("flags the override-suffix ID", "DEC-INPUT-007d" in out and "retired" in out, out)
+    check("flags the duplicate ID", "duplicate ID" in out, out)
 
-    # It must also validate as its own entry (parent + suffix, no false duplicate).
-    rc, out, _ = run_cli(["--validate"], env)
-    check("cli: --validate accepts a suffix ID", rc == 0, out)
+    rc, out, _ = run_cli(["--lint", "--write"], env)
+    check("--write removes the plain Status lines", "Removed 1 plain" in out, out)
+    check("--write leaves the ones carrying prose", "Left 2" in out, out)
+    remaining = (project / "DECISIONS.md").read_text(encoding="utf-8")
+    id_lines = [l for l in remaining.split("\n") if l.startswith("DEC-INPUT-007")]
+    check("--write kept every decision", len(id_lines) == 3, remaining)
 
-    # The area overview must count both entries, not just the parent.
-    payload = {"prompt": "x"}
-    _, out, _ = run_hook("decisions_binding_nudge.py", payload, env)
-    check("binding_nudge: overview counts the suffix entry", "input:2" in out, out)
+    project = setup_project(tmp, decisions=BLOATED_MD)
+    env = _env(project, SESSION_ID)
+    rc, out, _ = run_cli(["--lint"], env)
+    check("bloat is a warning, not an error (exit 0)", rc == 0, out)
+    check("warns about a near-duplicate", "nearly the same thing" in out, out)
+    check("warns about an oversized entry", "design document" in out, out)
+    check("warns about code names in a statement", "code identifier" in out or
+          "function call" in out, out)
+
+    project = setup_project(tmp)
+    rc, out, _ = run_cli(["--lint"], _env(project, SESSION_ID))
+    check("a clean file passes", rc == 0 and "Clean" in out, out)
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── 11. CLI read paths ────────────────────────────────────────────────────────
+
+def test_cli(tmp):
+    print("\n[11] CLI")
+    project = setup_project(tmp)
+    env = _env(project, SESSION_ID)
+    start_session(project)
+
+    rc, out, _ = run_cli([], env)
+    check("no args lists areas and counts", rc == 0 and "input" in out and "2" in out, out)
+
+    rc, out, _ = run_cli(["--query", "jump", "button"], env)
+    check("multi-word query works", rc == 0 and "DEC-INPUT-001" in out, out)
+    check("query shows the reasoning", "Face buttons are reserved" in out, out)
+
+    rc, out, _ = run_cli(["--query", "quixotic", "flibbertigibbet"], env)
+    check("a miss does NOT dump the whole file", "DEC-INPUT-001" not in out, out)
+    check("a miss offers the area list instead", "Decision areas" in out, out)
+
+    rc, out, _ = run_cli(["--area", "render"], env)
+    check("--area filters", "DEC-RENDER-001" in out and "DEC-INPUT-001" not in out, out)
+
+    rc, out, _ = run_cli(["--area", "nosucharea"], env)
+    check("unknown area is explained, not dumped", "Unknown area" in out
+          and "DEC-INPUT-001" not in out, out)
+
+    # A manual read should stop the serve hook repeating that area.
+    rc, _, err = run_hook("decisions_serve.py", write_payload(project, "render_pass.gd"), env)
+    check("CLI read marks the area as seen", rc == 0 and not err.strip(), err)
+
+    rc, out, _ = run_cli(["--doctor"], env)
+    check("doctor exits 0 when healthy", rc == 0, out)
+    check("doctor reports the state dir", "state dir writable" in out, out)
+    check("doctor confirms hooks have run", "SessionStart hook has run" in out
+          and "FAIL  SessionStart" not in out, out)
+
+    rc, out, _ = run_cli(["--write"], env)
+    check("--write without --lint is refused", rc == 2, out)
+
+
+# ── 12. A big file stays bounded ──────────────────────────────────────────────
+
+def test_bounded_output(tmp):
+    print("\n[12] Bounded output")
+    big = "\n\n".join("DEC-INPUT-%03d: Input rule number %d." % (i, i) for i in range(1, 41))
+    project = setup_project(tmp, decisions=big, tree=("input_handler.gd",))
+    env = _env(project, SESSION_ID)
+    start_session(project)
+
+    rc, _, err = run_hook("decisions_serve.py", write_payload(project, "input_handler.gd"), env)
+    served = [l for l in err.split("\n") if l.startswith("DEC-")]
+    check("serve caps how much it prints", len(served) <= 15, len(served))
+    check("serve says how much it withheld", "more in this area" in err, err)
+
+    rc, out, _ = run_cli(["--area", "input"], env)
+    shown = [l for l in out.split("\n") if l.startswith("DEC-")]
+    check("CLI caps a large area", len(shown) <= 12, len(shown))
+    check("CLI says how much it withheld", "not shown" in out, out)
+
+
+# ── 13. Concurrency ───────────────────────────────────────────────────────────
+
+def _run_parallel(hook, payloads, env, workers=20):
+    """Fire N hook processes at once, the way parallel tool calls do."""
+    results = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(run_hook, hook, p, env) for p in payloads]
+        for f in futures:
+            results.append(f.result())
+    return results
+
+
+def test_concurrency(tmp):
+    print("\n[13] Concurrency — parallel tool calls")
+    names = ["input_file_%02d.gd" % i for i in range(20)]
+    project = setup_project(tmp, tree=tuple(names))
+    env = _env(project, SESSION_ID)
+    start_session(project)
+
+    # Every parallel edit must be recorded. A shared read-modify-write JSON kept 8/20.
+    _run_parallel("decisions_check.py", [write_payload(project, n) for n in names], env)
+    recorded = pending_edits(project)
+    check("all 20 parallel edits recorded", len(recorded) == 20,
+          "%d of 20: %s" % (len(recorded), recorded[:5]))
+
+    # Exactly one of N racing serve hooks may block; the rest must let the edit past,
+    # or the same decisions get printed several times over for one area.
+    project2 = setup_project(tmp, tree=tuple(names))
+    env2 = _env(project2, SESSION_ID)
+    start_session(project2)
+    results = _run_parallel(
+        "decisions_serve.py", [write_payload(project2, n) for n in names], env2)
+    blocked = [r for r in results if r[0] == 2]
+    check("exactly one of 20 racing serves blocks", len(blocked) == 1,
+          "%d blocked" % len(blocked))
+    check("the one block still carries the decisions",
+          bool(blocked) and "DEC-INPUT-001" in blocked[0][2], blocked[:1])
+    check("area recorded as served exactly once", served_areas(project2) == ["input"],
+          served_areas(project2))
+
+
+# ── 14. Damaged and hostile files ─────────────────────────────────────────────
+
+def test_damaged_files(tmp):
+    print("\n[14] Damaged DECISIONS.md")
+
+    # A file saved in the Windows system codepage is not valid UTF-8. Every hook used
+    # to die with a traceback on every edit.
+    project = setup_project(tmp, decisions=None, tree=("input_handler.gd",))
+    (project / "DECISIONS.md").write_bytes(
+        "DEC-INPUT-001: Café curtains are red.\n".encode("cp1252"))
+    env = _env(project, SESSION_ID)
+    start_session(project)
+    for hook, payload in (("decisions_serve.py", write_payload(project, "input_handler.gd")),
+                          ("decisions_check.py", write_payload(project, "input_handler.gd")),
+                          ("decisions_stop_check.py", {"session_id": SESSION_ID}),
+                          ("decisions_precompact.py", {})):
+        rc, _, err = run_hook(hook, payload, env)
+        check("%s survives a non-UTF-8 file" % hook, "Traceback" not in err, err[:200])
+    rc, out, _ = run_cli(["--lint"], env)
+    check("lint names the encoding problem", "not valid UTF-8" in out, out)
+    rc, out, _ = run_cli(["--lint", "--write"], env)
+    check("--write refuses to rewrite a file it could not decode",
+          "Removed 0 plain" in out, out)
+
+    # A stray carriage return mid-line is not a line break; reported line numbers must
+    # still match what the user's editor shows.
+    project = setup_project(tmp, decisions=None)
+    (project / "DECISIONS.md").write_bytes(
+        b"DEC-A-001: One.\nDEC-A-002: Two \r with a stray CR.\nStatus: Active\n")
+    rc, out, _ = run_cli(["--lint"], _env(project, SESSION_ID))
+    check("line number ignores a stray CR", "line 3:" in out, out)
+
+
+def test_stop_check_signal(tmp):
+    print("\n[15] Stop check uses this session's own edit, not git state")
+    project = setup_project(tmp, tree=("audio_bus.gd",))
+    env = _env(project, SESSION_ID)
+    start_session(project)
+
+    run_hook("decisions_check.py", write_payload(project, "audio_bus.gd"), env)
+    # Writing DECISIONS.md this session is what cancels the check.
+    run_hook("decisions_check.py", write_payload(project, "DECISIONS.md"), env)
+    rc, out, _ = run_hook("decisions_stop_check.py", {"session_id": SESSION_ID}, env)
+    check("silent once DECISIONS.md was written this session", not out.strip(), out)
+
+    # An unrelated file merely named decisions.md is governed like anything else.
+    # (Not under vendor/ — that is exempt by default, which would mask the point.)
+    project = setup_project(tmp, tree=("game/dep/input_thing.gd",))
+    env = _env(project, SESSION_ID + "-v")
+    start_session(project, SESSION_ID + "-v")
+    (project / "game" / "dep" / "decisions.md").write_text("not the real one", encoding="utf-8")
+    rc, _, err = run_hook("decisions_serve.py",
+                          write_payload(project, "game/dep/input_thing.gd",
+                                        SESSION_ID + "-v"), env)
+    check("a stray decisions.md does not exempt its neighbours", rc == 2, err[:200])
+
+    # Vendored trees are exempt by default -- they are not your design surface.
+    project = setup_project(tmp, tree=("addons/thing/input_helper.gd",))
+    env = _env(project, SESSION_ID + "-a")
+    start_session(project, SESSION_ID + "-a")
+    rc, _, err = run_hook("decisions_serve.py",
+                          write_payload(project, "addons/thing/input_helper.gd",
+                                        SESSION_ID + "-a"), env)
+    check("addons/ is exempt by default", rc == 0, err[:200])
+
+
+# ── 16. Inputs that used to hang or vanish ────────────────────────────────────
+
+def test_pathological(tmp):
+    print("\n[16] Pathological input — must stay fast and visible")
+
+    # The lint runs on every write to DECISIONS.md, inside a 5s hook timeout.
+    big = "\n\n".join("DEC-AREA%d-%03d: Rule number %d about thing %d."
+                      % (i % 7, i, i, i) for i in range(3000))
+    project = setup_project(tmp, decisions=big)
+    env = _env(project, SESSION_ID)
+    started = time.time()
+    rc, out, _ = run_cli(["--lint"], env)
+    elapsed = time.time() - started
+    check("3000 decisions lint in under 5s", elapsed < 5.0, "took %.1fs" % elapsed)
+
+    # The shape that survived the first fix: many areas, each just under the per-area
+    # cap, with statements as long as real ones get.
+    many = "\n\n".join(
+        "DEC-AREA%02d-%03d: %s" % (a, i, " ".join("word%d" % (i * 7 + w) for w in range(100)))
+        for a in range(40) for i in range(250))
+    project = setup_project(tmp, decisions=many)
+    started = time.time()
+    rc, out, _ = run_cli(["--lint"], _env(project, SESSION_ID))
+    elapsed = time.time() - started
+    check("40 verbose areas lint in under 5s", elapsed < 5.0, "took %.1fs" % elapsed)
+
+    # One entry, ~20KB of "a.a.a...", used to backtrack for minutes.
+    project = setup_project(tmp, decisions="DEC-BAIT-001: " + ("a." * 10000) + "zzz\n")
+    started = time.time()
+    rc, out, _ = run_cli(["--lint"], _env(project, SESSION_ID))
+    elapsed = time.time() - started
+    check("a 20KB dotted statement lints in under 5s", elapsed < 5.0, "took %.1fs" % elapsed)
+
+    # An ID that does not parse must be reported, never silently dropped.
+    for bad in ("dec-input-001", "DEC--001", "DEC-999-001"):
+        project = setup_project(tmp, decisions="%s: Something binding.\n" % bad)
+        rc, out, _ = run_cli(["--lint"], _env(project, SESSION_ID))
+        check("`%s` is reported, not silently ignored" % bad,
+              rc == 1 and "does not parse" in out, out[:200])
+
+    # An example inside a code fence is documentation, not a binding decision.
+    project = setup_project(tmp, decisions=(
+        "# How to write one\n\n```\nDEC-CODE-001: An example, not a rule.\n```\n\n"
+        "DEC-INPUT-001: A real rule.\n"))
+    rc, out, _ = run_cli([], _env(project, SESSION_ID))
+    check("a fenced example is not counted as a decision",
+          "code" not in out and "input" in out, out)
+
+    # A tilde fence is a fence too.
+    project = setup_project(tmp, decisions=(
+        "~~~\nDEC-CODE-001: An example.\n~~~\n\nDEC-INPUT-001: A real rule.\n"))
+    rc, out, _ = run_cli([], _env(project, SESSION_ID))
+    check("a tilde fence hides its example too", "code" not in out and "input" in out, out)
+
+    # A longer fence wrapping a shorter one must not end at the inner marker.
+    project = setup_project(tmp, decisions=(
+        "````\n```\nDEC-CODE-999: Doubly fenced, still an example.\n```\n````\n\n"
+        "DEC-INPUT-001: A real rule.\n"))
+    rc, out, _ = run_cli([], _env(project, SESSION_ID))
+    check("a nested fence does not leak its example",
+          "code" not in out and "input" in out, out)
+
+    # An unclosed fence must never silently swallow the decisions after it.
+    project = setup_project(tmp, decisions=(
+        "```\nDEC-CODE-001: Example.\n\nDEC-INPUT-001: A real rule that must survive.\n"))
+    env = _env(project, SESSION_ID)
+    rc, out, _ = run_cli(["--lint"], env)
+    check("an unclosed fence is an error, not silence",
+          rc == 1 and "never closed" in out, out)
+    rc, out, _ = run_cli([], env)
+    check("decisions after an unclosed fence still parse", "input" in out, out)
+
+    # A mistyped tracked_extensions must not silently disable the plugin.
+    project = setup_project(tmp, config={"tracked_extensions": [[".gd"], 7]},
+                            tree=("input_handler.gd",))
+    env = _env(project, SESSION_ID + "-cfg2")
+    start_session(project, SESSION_ID + "-cfg2")
+    rc, _, err = run_hook("decisions_serve.py",
+                          write_payload(project, "input_handler.gd", SESSION_ID + "-cfg2"), env)
+    check("a mistyped tracked_extensions falls back to defaults", rc == 2, err[:200])
+
+    # A malformed payload must not produce a traceback.
+    project = setup_project(tmp, tree=("input_handler.gd",))
+    env = _env(project, SESSION_ID)
+    for bad_input in ({"file_path": ["a", "b"]}, {"file_path": None}, "notadict"):
+        for hook in ("decisions_serve.py", "decisions_check.py"):
+            rc, _, err = run_hook(hook, {"tool_name": "Write", "tool_input": bad_input,
+                                         "session_id": SESSION_ID}, env)
+            check("%s survives file_path=%r" % (hook, bad_input),
+                  "Traceback" not in err, err[:200])
+
 
 def main():
-    print(f"decisions-md plugin synthetic-payload harness")
-    print(f"Plugin root: {PLUGIN_ROOT}")
-
+    global STATE_ROOT
+    print("decisions-md plugin harness")
+    print("Plugin root: %s" % PLUGIN_ROOT)
     with tempfile.TemporaryDirectory(prefix="decisions_md_test_") as tmp:
-        test_manifest(tmp)
-        test_portability(tmp)
-        test_session_start(tmp)
-        test_gate_locked(tmp)
-        test_gate_unlock(tmp)
-        test_gate_exempt(tmp)
-        test_check_nudge(tmp)
-        test_decisions_validation(tmp)
-        test_binding_injection(tmp)
-        test_stop_hook(tmp)
-        test_config_override(tmp)
-        test_multiword_query(tmp)
-        test_default_extensions(tmp)
-        test_outside_project_root(tmp)
-        test_suffix_ids(tmp)
-
-    print(f"\n{'='*50}")
-    print(f"Results: {_passes} passed, {_failures} failed")
+        STATE_ROOT = Path(tmp) / "_state"
+        STATE_ROOT.mkdir()
+        for fn in (test_manifest, test_portability, test_state_location, test_session_start,
+                   test_serve, test_serve_scope, test_serve_config, test_check, test_stop,
+                   test_lint, test_cli, test_bounded_output, test_concurrency,
+                   test_damaged_files, test_stop_check_signal, test_pathological):
+            fn(tmp)
+    print("\n" + "=" * 50)
+    print("Results: %d passed, %d failed" % (_passes, _failures))
     return 0 if _failures == 0 else 1
 
 
