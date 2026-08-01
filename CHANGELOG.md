@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.1] - 2026-08-01
+
+### Fixed
+
+- **A blank line now closes an open field.** Prose following a decision — a markdown
+  heading grouping the next entries, a note between them — was appended to the last
+  field's value. It printed as part of the entry, and its words joined the entry's search
+  tokens, so a heading could pull an unrelated decision into the set surfaced for a file.
+  A field still wraps onto the next line when no blank line separates them.
+
+### Changed
+
+- The README example is built from decisions other work has to honour, rather than
+  settings nothing depends on.
+
 ## [2.1.0] - 2026-08-01
 
 The plugin now carries everything it needs to explain itself. Nothing about it has to

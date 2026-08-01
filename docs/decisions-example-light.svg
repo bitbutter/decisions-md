@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="590" viewBox="0 0 860 590" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="635" viewBox="0 0 860 635" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">
   <defs>
     <clipPath id="card">
-      <rect x="0.5" y="0.5" width="859" height="589" rx="10"/>
+      <rect x="0.5" y="0.5" width="859" height="634" rx="10"/>
     </clipPath>
   </defs>
 
   <g clip-path="url(#card)">
-    <rect x="0" y="0" width="860" height="590" fill="#ffffff"/>
+    <rect x="0" y="0" width="860" height="635" fill="#ffffff"/>
     <rect x="0" y="0" width="860" height="52" fill="#f6f8fa"/>
     <line x1="0" y1="52" x2="860" y2="52" stroke="#d8dee4" stroke-width="1"/>
 
@@ -18,26 +18,28 @@
     <text x="828" y="31" font-size="13" fill="#8c959f" text-anchor="end">5 decisions &#183; 3 areas</text>
 
     <g font-size="15">
-      <text x="36" y="88" fill="#8c959f" font-weight="600">## Input</text>
+      <text x="36" y="88" fill="#8c959f" font-weight="600">## Combat</text>
 
-      <text x="36" y="142"><tspan fill="#0550ae" font-weight="600">DEC-INPUT-001:</tspan><tspan fill="#1f2328"> Jumping is bound to the A button.</tspan></text>
-      <text x="36" y="169" font-size="14" fill="#8c959f">Context: Face buttons are reserved for actions the player uses under pressure.</text>
+      <text x="36" y="142"><tspan fill="#0550ae" font-weight="600">DEC-COMBAT-001:</tspan><tspan fill="#1f2328"> Damage and health are whole numbers.</tspan></text>
+      <text x="36" y="169" font-size="14" fill="#8c959f">Context: Cards, relics and scaling multiply these; fractions drift from the shown total.</text>
 
-      <text x="36" y="223"><tspan fill="#0550ae" font-weight="600">DEC-INPUT-002:</tspan><tspan fill="#1f2328"> Holding a direction at the title screen does not skip the intro.</tspan></text>
+      <text x="36" y="223"><tspan fill="#0550ae" font-weight="600">DEC-COMBAT-002:</tspan><tspan fill="#1f2328"> The same inputs on the same board always produce the same outcome.</tspan></text>
+      <text x="36" y="250" font-size="14" fill="#8c959f">Context: Replays, the daily seed and every regression test replay a recorded run.</text>
 
-      <text x="36" y="277" fill="#8c959f" font-weight="600">## Economy</text>
+      <text x="36" y="304" fill="#8c959f" font-weight="600">## Economy</text>
 
-      <text x="36" y="331"><tspan fill="#0550ae" font-weight="600">DEC-ECONOMY-001:</tspan><tspan fill="#1f2328"> Coins dropped by an enemy despawn after 20 seconds.</tspan></text>
-      <text x="36" y="358" font-size="14" fill="#8c959f">Context: Keeps the arena readable during a long fight.</text>
+      <text x="36" y="358"><tspan fill="#0550ae" font-weight="600">DEC-ECONOMY-001:</tspan><tspan fill="#1f2328"> Gold is earned in combat only, never from exploring.</tspan></text>
+      <text x="36" y="385" font-size="14" fill="#8c959f">Context: Encounter rewards are the only pacing lever; a second source breaks that.</text>
 
-      <text x="36" y="412"><tspan fill="#0550ae" font-weight="600">DEC-ECONOMY-002:</tspan><tspan fill="#1f2328"> The shop never offers an item the player already owns.</tspan></text>
+      <text x="36" y="439" fill="#8c959f" font-weight="600">## Save</text>
 
-      <text x="36" y="466" fill="#8c959f" font-weight="600">## Save</text>
+      <text x="36" y="493"><tspan fill="#0550ae" font-weight="600">DEC-SAVE-001:</tspan><tspan fill="#1f2328"> A save written by an older build must load in a newer one.</tspan></text>
+      <text x="36" y="520" font-size="14" fill="#8c959f">Context: Players keep runs across updates; fields may be added, never removed or reused.</text>
 
-      <text x="36" y="520"><tspan fill="#0550ae" font-weight="600">DEC-SAVE-001:</tspan><tspan fill="#1f2328"> The game autosaves on room exit, never mid-combat.</tspan></text>
-      <text x="36" y="547" font-size="14" fill="#8c959f">Context: A mid-combat save would let a player reload out of a bad turn.</text>
+      <text x="36" y="574"><tspan fill="#0550ae" font-weight="600">DEC-SAVE-002:</tspan><tspan fill="#1f2328"> The game autosaves on room exit, never mid-combat.</tspan></text>
+      <text x="36" y="601" font-size="14" fill="#8c959f">Context: Encounter design treats a fight as atomic; a mid-fight save would undo a bad turn.</text>
     </g>
   </g>
 
-  <rect x="0.5" y="0.5" width="859" height="589" rx="10" fill="none" stroke="#d0d7de" stroke-width="1"/>
+  <rect x="0.5" y="0.5" width="859" height="634" rx="10" fill="none" stroke="#d0d7de" stroke-width="1"/>
 </svg>

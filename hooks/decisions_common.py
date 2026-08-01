@@ -692,22 +692,31 @@ def parse_decisions(path):
         statement_parts = [first] if first else []
         fields = []
         in_statement = True
+        in_field = False
         for raw in lines[start + 1:end]:
             line = raw.rstrip()
             if not line.strip():
+                # A blank line closes the statement AND any open field. Without closing
+                # the field, every later line up to the next ID -- a markdown heading, a
+                # note between entries -- was appended to the last field's value, which
+                # both printed as part of the entry and fed the area matcher words the
+                # author never put in the decision.
                 in_statement = False
+                in_field = False
                 continue
             field = FIELD_LINE_RE.match(line)
             if field:
                 in_statement = False
+                in_field = True
                 fields.append((field.group(1), field.group(2).strip()))
                 continue
             if in_statement:
                 statement_parts.append(line.strip())
-            elif fields:
-                # Continuation of the previous field's value.
+            elif in_field:
+                # Continuation of the previous field's value, unbroken by a blank line.
                 key, value = fields[-1]
                 fields[-1] = (key, (value + " " + line.strip()).strip())
+            # Anything else is prose between entries -- headings, notes. Not ours.
 
         block = [l for l in lines[start:end] if l.strip()]
         decisions.append(Decision(

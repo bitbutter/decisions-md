@@ -693,6 +693,31 @@ def test_pathological(tmp):
     check("a nested fence does not leak its example",
           "code" not in out and "input" in out, out)
 
+    # A blank line closes an open field. Prose that follows -- a markdown heading
+    # grouping the next entries, a note between them -- belongs to the file, not to the
+    # decision above it. It used to be appended to the last field's value, so it printed
+    # as part of the entry and fed the area matcher words nobody wrote into the rule.
+    project = setup_project(tmp, decisions=(
+        "DEC-COMBAT-001: Damage is a whole number.\n"
+        "Context: Cards multiply these values.\n\n"
+        "## Netcode\n\n"
+        "DEC-NETCODE-001: The host resolves ties.\n"))
+    rc, out, _ = run_cli(["--area", "combat"], _env(project, SESSION_ID))
+    check("a heading after a Context line does not join the field",
+          "Netcode" not in out and "Cards multiply" in out, out)
+    rc, out, _ = run_cli(["--query", "netcode"], _env(project, SESSION_ID))
+    check("that heading does not make the combat entry match on its words",
+          "DEC-COMBAT-001" not in out, out)
+
+    # A wrapped field, unbroken by a blank line, is still one value.
+    project = setup_project(tmp, decisions=(
+        "DEC-COMBAT-001: Damage is a whole number.\n"
+        "Context: Cards multiply these values,\n"
+        "so a fraction drifts from the shown total.\n"))
+    rc, out, _ = run_cli(["--area", "combat"], _env(project, SESSION_ID))
+    check("a field still wraps onto the next line",
+          "drifts from the shown total" in out, out)
+
     # An unclosed fence must never silently swallow the decisions after it.
     project = setup_project(tmp, decisions=(
         "```\nDEC-CODE-001: Example.\n\nDEC-INPUT-001: A real rule that must survive.\n"))
