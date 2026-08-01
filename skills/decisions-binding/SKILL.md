@@ -50,16 +50,31 @@ Otherwise the question really is open again, and re-opening it is correct.
 
 ## What belongs in an entry
 
-DECISIONS.md records **user- or designer-facing** decisions: rules, UX, balance, what
-a control does, win and scoring conditions. It is not implementation documentation and
-not a changelog.
+Two questions decide it. **Both answers must be yes.**
 
-- **Would a user or designer care, not just a programmer?** If a fact only makes sense
-  to someone reading the code, it belongs in a code comment citing the decision ID.
+**1. Could someone break this without anything failing?**
+
+Do the opposite in your head. Does it compile, pass the tests and run? If a type, an
+assert or a test would catch it, that mechanism is already holding the rule — leave it
+there. A rule written in two places goes stale in one of them, and the file is the copy
+nobody re-checks.
+
+**2. Would the list of places that have to change be endless?**
+
+Try to write that list. If you finish it, this is a refactor: change those places. If you
+cannot start it, because most of the affected work does not exist yet, this is a decision.
+
+That second question is what separates a decision from a setting. Rebind jump to B and the
+list is short and knowable — the input map, the button prompt art. Add a second source of
+gold and there is no list, because every reward that will ever be written is on it.
+
+Then, for anything that passes both:
+
 - **State the rule, not the fix.** Never narrate how a bug was found or corrected.
 - **No implementation fingerprints.** No file paths, line numbers, function or variable
   names in the statement.
-- **Pure refactors, internal fixes and behavior-preserving changes need no entry.**
+- **One rule per entry.** "Autosaves on room exit, never mid-combat" is two: the trigger
+  site owns the first, nothing owns the second. Keep the half that passes both questions.
 - **One or two sentences.** An entry that runs past about eight lines has stopped being
   a rule and become a design document; the linter will say so.
 
@@ -107,11 +122,13 @@ The bar is high, and the default answer is that no entry is needed. A decisions 
 that accumulates an entry per session stops being memory and becomes noise — every
 future read costs more and the rules that matter get harder to see.
 
-Propose one only when the work settled a user- or designer-facing rule that nothing on
-file already covers. Then:
+Propose one only when the work settled a rule that passes both questions above and that
+nothing on file already covers. Then:
 
 1. Search for near-duplicates: `/decisions-md:decisions --query <keywords>`.
 2. Name the existing decision you checked against when you propose.
-3. Draft the statement — a sentence or two, plus a brief `Context:` — and ask the user
+3. Say what breaks silently if someone does the opposite, and why the affected places
+   cannot be listed. If you can list them, propose the change instead of the entry.
+4. Draft the statement — a sentence or two, plus a brief `Context:` — and ask the user
    to confirm before writing it.
-4. Check the format afterwards: `/decisions-md:decisions --lint`.
+5. Check the format afterwards: `/decisions-md:decisions --lint`.

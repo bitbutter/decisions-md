@@ -1,7 +1,7 @@
 {
   "name": "decisions-md",
   "displayName": "DECISIONS.md Enforcement",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Binding design memory for a project's DECISIONS.md. Serves the decisions that govern a file just before Claude edits it, carries them through compaction, lints the file for format and bloat, and asks about capture only for work no decision covers. Standard library only; keeps its state out of your repository.",
   "author": {
     "name": "bitbutter",

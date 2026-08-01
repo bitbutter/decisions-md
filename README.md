@@ -33,15 +33,15 @@ no config file, nothing to copy in.
 `decisions/`. A decision is one line:
 
 ```
-DEC-INPUT-001: Jumping is bound to the A button.
+DEC-ECONOMY-001: Gold is earned in combat only, never from exploring.
 ```
 
 An ID, a colon, and the rule. The statement can wrap across lines. Add a `Context:` line
 underneath when the reasoning is worth keeping:
 
 ```
-DEC-INPUT-001: Jumping is bound to the A button.
-Context: Face buttons are reserved for actions the player uses under pressure.
+DEC-ECONOMY-001: Gold is earned in combat only, never from exploring.
+Context: Encounter rewards are the only pacing lever; a second source breaks that.
 ```
 
 `DEC-<AREA>-<NNN>`. Areas are yours to name — INPUT, RENDER, ECONOMY, whatever parts
@@ -51,15 +51,52 @@ A whole file looks like this:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/decisions-example-dark.svg">
-  <img alt="A DECISIONS.md file holding five decisions grouped into input, economy and save areas. Each entry is an ID, a colon and a rule, some with a Context line underneath." src="docs/decisions-example-light.svg" width="860">
+  <img alt="A DECISIONS.md file holding five decisions grouped into combat, economy and save areas. Each entry is an ID, a colon and a rule, most with a Context line underneath." src="docs/decisions-example-light.svg" width="860">
 </picture>
 
-The `## Input` headings are ordinary markdown for your own reading. The plugin takes the
+The `## Combat` headings are ordinary markdown for your own reading. The plugin takes the
 area from the ID, so headings are optional and it does not matter what you call them.
 
 There is no status line and no status vocabulary. Every entry in the file is binding.
 
 Check the format at any time with `/decisions-md:decisions --lint`.
+
+## What belongs in the file
+
+Two questions decide it, and both answers have to be yes.
+
+**1. Could someone break this without anything failing?**
+
+Do the opposite in your head. Does it compile, pass the tests and run? If a type, an
+assert or a test would catch it, that mechanism is already holding the rule. Leave it
+there. A rule written in two places goes stale in one of them, and the file is the copy
+nobody re-checks.
+
+**2. Would the list of places that have to change be endless?**
+
+Try to write that list. If you finish it, this is a refactor — go and change those places.
+If you cannot start it, because most of the affected work does not exist yet, it is a
+decision.
+
+The second question is what separates a decision from a setting. Rebind jump to B and the
+list is short and knowable: the input map, the button prompt art. Add a second source of
+gold and there is no list, because every reward that will ever be written is on it.
+
+### Why the bar sits there
+
+Most of what belongs in this file gets settled early. What the player is promised, what a
+save has to guarantee, what may never happen during a fight — those are usually decided
+before the code that depends on them exists, which is exactly why they end up constraining
+so much of what comes later. A choice made in week one rules out an approach in month six.
+
+Early is also when a decision is easiest to lose. It gets made in conversation, acted on
+once, and after that it lives in whoever remembers it. Nothing in the code states it, so
+nothing contradicts an agent that assumes otherwise and writes something reasonable that
+quietly violates it.
+
+That is the entire job of the file: hold the handful of choices that later work has to fit
+around, and put them back in front of whoever is about to write that work. Everything the
+code can already answer belongs in the code.
 
 ### Changing a decision
 

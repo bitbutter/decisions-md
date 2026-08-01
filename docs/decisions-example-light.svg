@@ -20,8 +20,8 @@
     <g font-size="15">
       <text x="36" y="88" fill="#8c959f" font-weight="600">## Combat</text>
 
-      <text x="36" y="142"><tspan fill="#0550ae" font-weight="600">DEC-COMBAT-001:</tspan><tspan fill="#1f2328"> Damage and health are whole numbers.</tspan></text>
-      <text x="36" y="169" font-size="14" fill="#8c959f">Context: Cards, relics and scaling multiply these; fractions drift from the shown total.</text>
+      <text x="36" y="142"><tspan fill="#0550ae" font-weight="600">DEC-COMBAT-001:</tspan><tspan fill="#1f2328"> The player sees an attack's exact damage before committing to it.</tspan></text>
+      <text x="36" y="169" font-size="14" fill="#8c959f">Context: Any new modifier has to resolve to a number the UI can show before the turn is taken.</text>
 
       <text x="36" y="223"><tspan fill="#0550ae" font-weight="600">DEC-COMBAT-002:</tspan><tspan fill="#1f2328"> The same inputs on the same board always produce the same outcome.</tspan></text>
       <text x="36" y="250" font-size="14" fill="#8c959f">Context: Replays, the daily seed and every regression test replay a recorded run.</text>
@@ -36,7 +36,7 @@
       <text x="36" y="493"><tspan fill="#0550ae" font-weight="600">DEC-SAVE-001:</tspan><tspan fill="#1f2328"> A save written by an older build must load in a newer one.</tspan></text>
       <text x="36" y="520" font-size="14" fill="#8c959f">Context: Players keep runs across updates; fields may be added, never removed or reused.</text>
 
-      <text x="36" y="574"><tspan fill="#0550ae" font-weight="600">DEC-SAVE-002:</tspan><tspan fill="#1f2328"> The game autosaves on room exit, never mid-combat.</tspan></text>
+      <text x="36" y="574"><tspan fill="#0550ae" font-weight="600">DEC-SAVE-002:</tspan><tspan fill="#1f2328"> The game never saves mid-combat.</tspan></text>
       <text x="36" y="601" font-size="14" fill="#8c959f">Context: Encounter design treats a fight as atomic; a mid-fight save would undo a bad turn.</text>
     </g>
   </g>

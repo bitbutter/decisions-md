@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.2.0] - 2026-08-01
+
+### Changed — what qualifies as a decision
+
+The bar was "would a user or designer care?", which asks for a judgement and gets a yes
+almost every time. It is now two questions with checkable answers, and both must be yes:
+
+1. **Could someone break this without anything failing?** If a type, an assert or a test
+   would catch it, that mechanism already holds the rule, and a second copy in the file
+   goes stale unnoticed.
+2. **Would the list of places that have to change be endless?** A list you can finish is
+   a refactor. A list you cannot start, because the affected work does not exist yet, is
+   a decision.
+
+The second question is what separates a decision from a setting. A button binding has a
+short, knowable list. A rule against a second source of gold has every reward that will
+ever be written on it.
+
+- The README gains a section on what belongs in the file, and why the bar sits there:
+  these choices are usually settled before the code that depends on them exists, which is
+  what makes them constrain so much of the later work — and what makes them easy to lose,
+  since nothing in the code states them.
+- The skill asks for the same two answers when proposing an entry, and says to propose the
+  change rather than the entry when the affected places can be listed.
+- **One rule per entry.** "Autosaves on room exit, never mid-combat" is two rules: the
+  trigger site owns the first, nothing owns the second.
+- The README example is rebuilt from entries that pass both questions. Whole-number damage
+  was dropped — in most projects a type already holds it.
+
 ## [2.1.1] - 2026-08-01
 
 ### Fixed
