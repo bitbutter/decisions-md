@@ -76,6 +76,18 @@ To look things up yourself:
 /decisions-md:decisions                     # areas and counts
 ```
 
+In a headless run (`claude -p`), the slash command does not reliably dispatch. Call the
+script directly instead — it takes the same flags:
+
+```
+"$(command -v python3 || command -v python || command -v py)" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/query_decisions.py" --query <keywords>
+```
+
+The interpreter is resolved at run time because no single Python name exists on every
+platform. Where `CLAUDE_PLUGIN_ROOT` is not set, the script is `scripts/query_decisions.py`
+inside the installed plugin directory.
+
 ## When a decision is directly relevant
 
 If a decision **directly answers** the question or **directly contradicts** a proposed

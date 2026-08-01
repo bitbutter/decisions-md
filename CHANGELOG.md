@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.1.0] - 2026-08-01
+
+The plugin now carries everything it needs to explain itself. Nothing about it has to
+live in a user's `CLAUDE.md`.
+
+### Added
+
+- **The `decisions-binding` skill documents the headless invocation.** In a `claude -p`
+  run the slash command does not reliably dispatch, so the skill now gives the direct
+  script call alongside it. This was the one piece of operating knowledge the plugin
+  expected you to have written down somewhere else.
+- **`CLAUDE.md` for this repository**, holding the development loop: edits to a clone are
+  not live until the version is bumped in both manifests and the plugin is updated. A
+  contributor cloning this repo had no way to learn that.
+- **An example file in the README**, as a light and dark image so it reads in either
+  GitHub theme.
+
 ## [2.0.0] - 2026-07-29
 
 A rewrite around one rule: **DECISIONS.md states what is true now, and git holds what

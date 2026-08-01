@@ -47,6 +47,16 @@ Context: Face buttons are reserved for actions the player uses under pressure.
 `DEC-<AREA>-<NNN>`. Areas are yours to name — INPUT, RENDER, ECONOMY, whatever parts
 your project has. The plugin only uses them for grouping.
 
+A whole file looks like this:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/decisions-example-dark.svg">
+  <img alt="A DECISIONS.md file holding five decisions grouped into input, economy and save areas. Each entry is an ID, a colon and a rule, some with a Context line underneath." src="docs/decisions-example-light.svg" width="860">
+</picture>
+
+The `## Input` headings are ordinary markdown for your own reading. The plugin takes the
+area from the ID, so headings are optional and it does not matter what you call them.
+
 There is no status line and no status vocabulary. Every entry in the file is binding.
 
 Check the format at any time with `/decisions-md:decisions --lint`.
