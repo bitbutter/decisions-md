@@ -65,24 +65,25 @@ Check the format at any time with `/decisions-md:decisions --lint`.
 
 Two questions decide it, and both answers have to be yes.
 
-**1. Could someone break this without anything failing?**
+**1. Could someone violate this without anything failing?**
 
 Do the opposite in your head. Does it compile, pass the tests and run? If a type, an
 assert or a test would catch it, that mechanism is already holding the rule. Leave it
 there. A rule written in two places goes stale in one of them, and the file is the copy
 nobody re-checks.
 
-**2. Would the list of places that have to change be endless?**
+**2. Does it bind work that has not been written yet?**
 
-Try to write that list. If you finish it, this is a refactor — go and change those places.
-If you cannot start it, because most of the affected work does not exist yet, it is a
-decision.
+Try naming everything that has to obey it. If you can finish the list, this is a refactor
+— go and change those places. If the honest answer is "anything that ever grants gold",
+it is a decision.
 
-The second question is what separates a decision from a setting. Rebind jump to B and the
-list is short and knowable: the input map, the button prompt art. Add a second source of
-gold and there is no list, because every reward that will ever be written is on it.
+That second question is what separates a decision from a setting. Rebind jump to B and you
+can name what changes: the input map, the button prompt art. Nothing else owes the old
+binding anything. A rule against a second source of gold is owed by every reward anyone
+will ever write.
 
-### Why the bar sits there
+### Most of this gets decided early
 
 Most of what belongs in this file gets settled early. What the player is promised, what a
 save has to guarantee, what may never happen during a fight — those are usually decided

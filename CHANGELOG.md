@@ -7,12 +7,12 @@
 The bar was "would a user or designer care?", which asks for a judgement and gets a yes
 almost every time. It is now two questions with checkable answers, and both must be yes:
 
-1. **Could someone break this without anything failing?** If a type, an assert or a test
+1. **Could someone violate this without anything failing?** If a type, an assert or a test
    would catch it, that mechanism already holds the rule, and a second copy in the file
    goes stale unnoticed.
-2. **Would the list of places that have to change be endless?** A list you can finish is
-   a refactor. A list you cannot start, because the affected work does not exist yet, is
-   a decision.
+2. **Does it bind work that has not been written yet?** If you can finish naming what has
+   to obey it, that is a refactor. If the honest answer is "anything that ever grants
+   gold", it is a decision.
 
 The second question is what separates a decision from a setting. A button binding has a
 short, knowable list. A rule against a second source of gold has every reward that will
