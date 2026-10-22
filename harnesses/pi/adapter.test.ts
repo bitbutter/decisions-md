@@ -126,7 +126,10 @@ test("an edit in a covered area blocks with the decisions, and the retry passes"
 			| { block?: boolean; reason?: string }
 			| undefined;
 		assert.equal(blocked?.block, true);
-		assert.ok(blocked?.reason?.includes("DEC-INPUT-001: Jumping is bound to the A button."), blocked?.reason);
+		assert.ok(
+			blocked?.reason?.includes("DEC-INPUT-001: Jumping is bound to the A button."),
+			blocked?.reason ?? "no reason",
+		);
 
 		const retry = await h.fire("tool_call", { toolName: "edit", input: { path: file } });
 		assert.equal(retry, undefined, "the area is claimed, so the retry must not block");
@@ -180,7 +183,7 @@ test("a write to DECISIONS.md attaches the lint report to the tool result", asyn
 			| undefined;
 		assert.equal(result?.content?.length, 2, "the original content is kept and the report appended");
 		assert.equal(result?.content?.[0]?.text, "Wrote 60 bytes");
-		assert.ok(result?.content?.[1]?.text?.includes("duplicate"), result?.content?.[1]?.text);
+		assert.ok(result?.content?.[1]?.text?.includes("duplicate"), result?.content?.[1]?.text ?? "no lint text");
 	} finally {
 		h.cleanup();
 	}
@@ -208,7 +211,7 @@ test("the commands are registered and /decisions-lint reports the format", async
 			await spec.handler("", h.ctx);
 		}
 		const lint = h.notices[1];
-		assert.ok(lint?.text.includes("duplicate"), lint?.text);
+		assert.ok(lint?.text.includes("duplicate"), lint?.text ?? "no notify");
 		assert.equal(h.notices.length, 4, "one report per command");
 		assert.equal(h.sent.length, 0, "commands notify, they do not inject");
 	} finally {

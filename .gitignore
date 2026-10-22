@@ -17,3 +17,6 @@ tests/tmp/
 .chainlink/
 .claude/
 .mcp.json
+
+# Installed dev dependencies (typescript, @types/node).
+node_modules/
