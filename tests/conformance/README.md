@@ -53,7 +53,10 @@ A runner (Phase 1 ships the TypeScript one) does exactly this:
 1. Copy the whole case directory into a fresh temporary directory **whose own name contains a space**. Project trees, expected files and absolute paths then all carry a space at once, which is one of the cases.
 2. Substitute path templates: `$CASE` → the copied case directory, `$PROJECT` → `$CASE/project`, `$STATE` → a fresh empty temporary directory that is exported as `DECISIONS_STATE_DIR` for the whole case.
 3. Snapshot the case copy before each step. After it, every file the step changed must be named in `expect.files`; anything else changing fails the step. This is how "the engine writes no state into the consuming project" is asserted on every case, not just once.
-4. Call the verb (in process or through the envelope — both must agree), then compare. Through the envelope, every step must exit 0, including steps that answer `block` or `fail`: the CLI never exits 2, and a non-zero exit means it produced no envelope at all.
+4. Call the verb twice — once in process, once through `bin/decisions.ts` — and compare both against the fixture. Each run gets its own copy and its own state root, because the first run mutates claims and pending edits. Through the envelope, every step must exit 0, including steps that answer `block` or `fail`: the CLI never exits 2, and a non-zero exit means it produced no envelope at all.
+5. Compare the two envelope sequences field for field, after replacing each run's temporary paths (and the state directory's project hash) with their tokens. Any difference is a failure: the same input must produce the same action, code, text and details whichever way the adapter reaches the engine.
+
+`node tests/conformance/run.ts` runs both passes, which takes about 20 seconds. `--in-process` runs the fixture checks only, for a fast loop while editing the engine.
 
 Comparison rules:
 
