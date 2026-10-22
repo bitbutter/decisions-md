@@ -1,5 +1,9 @@
 # Working on decisions-md
 
+## Issue tracking
+
+`chainlink` owns this repo's issues, in a project-local tracker at `.chainlink/` (gitignored, with `.claude/` and `.mcp.json` that `chainlink init` also drops in). `chainlink issue next` for the next item, `chainlink session work <N>` while on it, `chainlink session end --notes` at the end. **Always close with `--no-changelog`**: without it chainlink appends a line to `CHANGELOG.md` under the newest released version, which is edited by hand.
+
 ## Two products in one tree
 
 * **v3** is the TypeScript engine: `spec/FORMAT.md` (the format, normative), `docs/ADAPTERS.md` (envelope, verbs, pi mapping), `core/`, `bin/decisions.ts`, `harnesses/pi/`, `tests/core/`, `tests/conformance/`. Node 22 runs the `.ts` sources directly. Checks: `npm install` once, then `npm test` (unit + adapter + fifth-adapter), `npm run conformance` (fixtures, in process and through the CLI), `npm run typecheck`, and `npm run live` (one real pi turn; reports pass/fail/unchecked).
