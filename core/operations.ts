@@ -40,6 +40,9 @@ export interface VerbInput {
 	terms?: string;
 	mode?: string;
 	now?: string;
+	/** `doctor` only: the adapter's own name and the harness version it was built against. */
+	adapter?: string;
+	builtAgainst?: string;
 }
 
 function required(value: unknown, name: string): string {
@@ -419,6 +422,18 @@ export function doctor(input: VerbInput): Envelope {
 			: "the OS gave no home directory, so state fell back to a temp path; set DECISIONS_STATE_DIR",
 	);
 	add("sessionIdentity", input.session?.trim() ? "ok" : "warn", input.session?.trim() ? "supplied" : "not supplied by this call");
+	// Reported, never assumed: an adapter that cannot say who it is may not be the
+	// one running, and a missing harness version is a stale badge nobody re-dated.
+	add(
+		"adapter",
+		input.adapter?.trim() ? "ok" : "warn",
+		input.adapter?.trim() || "not reported by this call",
+	);
+	add(
+		"harness",
+		input.builtAgainst?.trim() ? "ok" : "warn",
+		input.builtAgainst?.trim() || "not reported by this call -- the adapter was built against no stated version",
+	);
 
 	const failures = checks.filter((check) => check.status === "fail");
 	const text = [

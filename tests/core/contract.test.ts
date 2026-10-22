@@ -137,6 +137,24 @@ test("core holds no harness knowledge", () => {
 	}
 });
 
+test("doctor reports the adapter and the harness version it is told about", () => {
+	const { root, cleanup } = project();
+	try {
+		const silent = handle("doctor", { root, session: "s" });
+		const silentChecks = (silent.details as { checks: Array<{ name: string; status: string }> }).checks;
+		assert.equal(silentChecks.find((check) => check.name === "adapter")?.status, "warn", "an adapter that says nothing is a warning");
+		assert.equal(silentChecks.find((check) => check.name === "harness")?.status, "warn");
+
+		const reported = handle("doctor", { root, session: "s", adapter: "pi", builtAgainst: "0.84.2" });
+		assert.equal(reported.action, "none");
+		assert.equal(reported.code, "ok");
+		assert.ok(reported.text.includes("ok   adapter: pi"), reported.text);
+		assert.ok(reported.text.includes("harness: 0.84.2"), reported.text);
+	} finally {
+		cleanup();
+	}
+});
+
 test("the engine version matches package.json", () => {
 	const pkg = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8")) as { version: string };
 	assert.equal(ENGINE_VERSION, pkg.version);

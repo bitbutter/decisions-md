@@ -287,7 +287,9 @@ A refusal writes nothing: no archive file, no edit.
 
 ### 5.8 `doctor`
 
-Input: `{ root }`. Codes: `ok` (`none`), `problems` (`none`). `details.checks` is `[{ name, status: ok|warn|fail, detail }]`: engine version, project root, decisions file, state directory writable, state root resolved (not a temp fallback), session identity seen. It reports rather than repairs, and it is the only place that says "installed and doing nothing" out loud.
+Input: `{ root, session?, adapter?, builtAgainst? }`. Codes: `ok` (`none`), `problems` (`none`). `details.checks` is `[{ name, status: ok|warn|fail, detail }]`: engine version, project root, decisions file, state directory writable, state root resolved (not a temp fallback), session identity seen, adapter heartbeat, harness version. It reports rather than repairs, and it is the only place that says "installed and doing nothing" out loud.
+
+`adapter` is the adapter's own name (`"pi"`) and `builtAgainst` is the harness version it was last verified against (`"0.84.2"`). Both are optional and both are the adapter's to send: core cannot see a harness, so it prints what it is told and warns when it is told nothing. A `warn` here is the honest "this install cannot say whether it has been verified", which is why neither is a `fail`.
 
 ## 6. Project inputs
 

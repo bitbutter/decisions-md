@@ -15,6 +15,11 @@ import type { Envelope } from "../../core/types.ts";
 
 const WRITE_TOOLS = new Set(["edit", "write"]);
 const CUSTOM_TYPE = "decisions-md";
+/**
+ * The pi version this adapter was last verified against. The README badge carries
+ * the same pair, and re-running tests/live/check.ts is what moves both.
+ */
+const PI_BUILT_AGAINST = "0.84.2";
 
 interface ToolEventLike {
 	toolName?: string;
@@ -161,7 +166,12 @@ export default function decisionsMd(pi: ExtensionAPI): void {
 	pi.registerCommand("decisions-doctor", {
 		description: "Report whether the decisions engine is working in this project",
 		handler: async (_args, ctx) => {
-			const envelope = handle("doctor", { root: ctx.cwd, session });
+			const envelope = handle("doctor", {
+				root: ctx.cwd,
+				session,
+				adapter: "pi",
+				builtAgainst: PI_BUILT_AGAINST,
+			});
 			ctx.ui.notify(envelope.text, envelope.code === "problems" ? "warning" : "info");
 		},
 	});

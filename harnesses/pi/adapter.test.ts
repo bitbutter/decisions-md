@@ -212,6 +212,9 @@ test("the commands are registered and /decisions-lint reports the format", async
 		}
 		const lint = h.notices[1];
 		assert.ok(lint?.text.includes("duplicate"), lint?.text ?? "no notify");
+		const doctor = h.notices[3]?.text ?? "";
+		assert.ok(doctor.includes("adapter: pi"), doctor);
+		assert.ok(doctor.includes("harness: 0.84.2"), doctor);
 		assert.equal(h.notices.length, 4, "one report per command");
 		assert.equal(h.sent.length, 0, "commands notify, they do not inject");
 	} finally {
