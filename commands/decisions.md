@@ -1,6 +1,6 @@
 ---
 description: Read the project's binding DECISIONS.md (search, browse, lint).
-argument-hint: [--query KEYWORDS | --area AREA | --lint [--write] | --doctor]
+argument-hint: "[--query KEYWORDS | --area AREA | --lint [--write] | --doctor]"
 allowed-tools: Bash(sh:*)
 ---
 Reading the project's binding design decisions.

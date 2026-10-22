@@ -9,7 +9,7 @@ Version 3 is a pi package written in TypeScript, with no dependencies at runtime
 | Harness | Version | Stands |
 |---|---|---|
 | pi | 3.0.0-rc.1 | Last verified against pi 0.84.2 on 2026-10-22: a real session had the decisions served at edit time, the edit blocked, and the retry pass. |
-| Claude Code | 2.2.0 | Its Python test suites pass on this machine as of 2026-10-22 (122 and 12 checks). No live Claude Code session has run it since the fork. Frozen. |
+| Claude Code | 2.2.1 | Its Python test suites pass on this machine as of 2026-10-22 (122 and 12 checks), and `claude plugin validate` passes on both manifests. No live Claude Code session has run it since the fork. Frozen. |
 
 There is no Codex or OpenCode adapter. `docs/ADAPTERS.md` says what one would have to do; `tests/adapters/` builds a fifth adapter from that document alone, to check that `core/` holds no harness knowledge.
 
@@ -216,9 +216,9 @@ npm run live        # one real pi session, token checked in the transcript
 
 The live check reports `pass`, `fail` or `unchecked`. A check it could not run is never reported as a pass. It needs a model with credentials; `DECISIONS_LIVE_MODEL` picks it.
 
-## Claude Code, frozen at 2.2.0
+## Claude Code, frozen at 2.2.1
 
-The Python plugin at the repo root (`hooks/`, `commands/`, `skills/`, `.claude-plugin/`) is the 2.2.0 product, kept for Claude Code. It is frozen, with these terms.
+The Python plugin at the repo root (`hooks/`, `commands/`, `skills/`, `.claude-plugin/`) is the 2.2.1 product, kept for Claude Code. It is frozen, with these terms.
 
 Critical correctness fixes only, with no new features and no port to v3. Its two Python suites pass on this machine as of 2026-10-22: 122 checks of the parser, linter and gate scope, and 12 checks that each hook launches through the shell. No live Claude Code session has run it since the fork, and that is the limit of what is known. Nothing flows from `core/` into it either: the two products share a format and a repository, not a runtime.
 

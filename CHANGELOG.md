@@ -57,14 +57,29 @@ and a date, and leaves the rest with line numbers. Either mode is a no-op on a s
 - **pi**: last verified against pi 0.84.2 on 2026-10-22, in a real session. The decisions
   were served at edit time, the edit was blocked, the retry passed, and the served token
   was found in the session transcript.
-- **Claude Code 2.2.0**: unchanged since the fork. Its Python suites pass on this machine
-  as of 2026-10-22 (122 and 12 checks); no live Claude Code session has run it since the
-  fork. Frozen at 2.2.0, and the Python plugin at the repo root still installs from this
-  repository's marketplace.
+- **Claude Code 2.2.1**: the frozen Python plugin. Its suites pass on this machine as of
+  2026-10-22 (122 and 12 checks); no live Claude Code session has run it since the fork.
+  It still installs from this repository's marketplace, and the 2.2.1 entry above records
+  the one fix it took this release.
 
-The test surface: 75 unit and adapter tests, 15 conformance fixtures that run twice —
+The test surface: 78 unit and adapter tests, 15 conformance fixtures that run twice —
 in process and through the CLI — with the two envelope sequences compared field by field,
 and a fifth adapter written from `docs/ADAPTERS.md` alone.
+
+## [2.2.1] - 2026-10-22
+
+### Fixed — the slash command was loading with no metadata
+
+`commands/decisions.md` had an `argument-hint` value that is not valid YAML (brackets and
+pipes, unquoted). The whole frontmatter block failed to parse, so the command loaded with
+an empty description, no argument hint and, most importantly, no `allowed-tools: Bash(sh:*)`
+restriction. The value is quoted now and the metadata loads. Found by `claude plugin
+validate`, which had been failing in CI since 1.0.0 without anyone reading it.
+
+CI also stops applying `--strict` to the plugin manifest. It stays strict on the
+marketplace, and errors still fail both: the plugin manifest carries two warnings this
+repository will not fix — no icon, and the root `CLAUDE.md` that the validator would
+rather see as a skill — and treating those as failures is what hid the real error.
 
 ## [2.2.0] - 2026-08-01
 

@@ -42,15 +42,22 @@ jobs:
             npm install -g @anthropic-ai/claude-code || true
           fi
 
-      - name: claude plugin validate --strict
+      - name: claude plugin validate
         # Validate BOTH manifests. Pointing at the repo root resolves to
         # marketplace.json (it takes precedence when present), so the plugin
         # manifest is validated explicitly by path -- otherwise a broken
         # plugin.json would sail through CI.
+        #
+        # --strict only on the marketplace: errors still fail either way, but the
+        # plugin manifest carries two warnings this repository will not fix --
+        # no icon, and the root CLAUDE.md that the validator would rather see as
+        # a skill. Under --strict those warnings are failures, which is how this
+        # job stayed red for months while a real error (the command's YAML
+        # frontmatter) went unread.
         run: |
           if command -v claude &>/dev/null; then
             claude plugin validate --strict .
-            claude plugin validate --strict .claude-plugin/plugin.json
+            claude plugin validate .claude-plugin/plugin.json
           else
             echo "claude CLI not available; skipping plugin validate (install it locally to run)"
           fi
