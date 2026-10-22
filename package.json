@@ -20,7 +20,7 @@
     "decisions"
   ],
   "scripts": {
-    "test": "node --test \"tests/core/*.test.ts\" \"harnesses/pi/*.test.ts\"",
+    "test": "node --test \"tests/**/*.test.ts\" \"harnesses/pi/*.test.ts\"",
     "conformance": "node tests/conformance/run.ts",
     "typecheck": "tsc --noEmit",
     "live": "node tests/live/check.ts"
