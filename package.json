@@ -22,7 +22,8 @@
   "scripts": {
     "test": "node --test \"tests/core/*.test.ts\" \"harnesses/pi/*.test.ts\"",
     "conformance": "node tests/conformance/run.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "live": "node tests/live/check.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
