@@ -108,3 +108,46 @@ test("lint does not modify the file", () => {
 	lintFile(file);
 	assert.equal(fs.readFileSync(file, "utf8"), content);
 });
+
+test("a reference to an ID that is not an entry is a warning, and does not block", () => {
+	const result = lint(
+		[
+			"DEC-AA-001: Jumping is bound to the A button (DEC-AA-002).",
+			"",
+			"DEC-AA-003: Running costs twice the turn budget.",
+		].join("\n"),
+	);
+	assert.equal(result.errors.length, 0, "a dangling reference is not an error");
+	const dangling = result.warnings.filter((w) => w.code === "dangling_reference");
+	assert.deepEqual(dangling.map((w) => w.line), [1]);
+	assert.ok(dangling[0]?.message.includes("DEC-AA-002"), dangling[0]?.message ?? "no message");
+});
+
+test("a reference inside a Context field counts, and a live reference does not", () => {
+	const result = lint(
+		[
+			"DEC-BB-001: One rule.",
+			"Context: see DEC-BB-002 for the reason this is not a timer.",
+			"",
+			"DEC-BB-002: The second rule.",
+		].join("\n"),
+	);
+	assert.deepEqual(result.warnings.filter((w) => w.code === "dangling_reference"), [], "DEC-BB-002 is an entry");
+});
+
+test("a block written in another ID vocabulary warns once per line", () => {
+	const result = lint(
+		[
+			"DEC-CC-001: The rule.",
+			"",
+			"## Open",
+			"",
+			"OPEN-001: Behaviour of an empty cell is undecided.",
+			"OPEN-002: Sack rules are undecided.",
+		].join("\n"),
+	);
+	assert.equal(result.errors.length, 0);
+	const foreign = result.warnings.filter((w) => w.code === "foreign_id_block");
+	assert.deepEqual(foreign.map((w) => w.line), [5, 6]);
+	assert.ok(foreign[0]?.message.includes("OPEN-001"), foreign[0]?.message ?? "no message");
+});

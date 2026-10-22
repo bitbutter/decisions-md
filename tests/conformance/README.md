@@ -90,7 +90,7 @@ A step with no `text` and no `textIncludes` asserts only the action, the code an
 | `scope-and-config` | config replaces defaults, `area_map`, exempt prefixes, out-of-project paths, a disabled project, a project with no `DECISIONS.md`, the root file winning discovery over `docs/`, and the precedence order that picks each code |
 | `uncovered-backstop` | the single question about uncovered work, and every case where it stays quiet (`no_pending_edits`, `all_covered`, `decisions_touched`, `already_asked`) |
 | `lint-errors` | duplicate ID, empty statement (not served to the model), and a codepage file that still parses while reporting `not_utf8` |
-| `swallowed-lines` | four non-entry lines that continue the statement above them: an indented entry and a space-instead-of-hyphen ID (both `malformed_id`), plus a heading under a statement and an indented `Status:` line (both still silent). Two entries written back to back still parse as two. |
+| `swallowed-lines` | four non-entry lines that continue the statement above them: an indented entry and a space-instead-of-hyphen ID (both `malformed_id`), plus a heading under a statement and an indented `Status:` line (both still silent). Two entries written back to back still parse as two. The swallowed ID also leaves a reference that names no entry, which is the one `dangling_reference` warning this case expects. |
 
 ## Deliberately not covered
 

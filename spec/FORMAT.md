@@ -212,6 +212,10 @@ Bloat signals. Never a reason to refuse anything, never repaired automatically.
 | `area_too_large` | entries sharing one area label | more than 25 |
 | `near_duplicate` | two entries in the same area with Jaccard similarity of statement tokens ≥ 0.6, each with at least 4 tokens | — |
 | `near_duplicate_skipped` | the comparison was skipped for an area | area larger than 250 entries, or the 60000-pair budget exhausted |
+| `dangling_reference` | the entry's statement or a field value names a `DEC-<AREA>-<NNN>` that is not an entry in this file. One warning per entry, listing every absent ID | — |
+| `foreign_id_block` | a line at column 0 starts with an identifier in another vocabulary and a colon, such as `OPEN-001:` or `TODO-12:`. One warning per line | — |
+
+A **reference** is prose, not a link: the engine does not read the archive, and an archived record is not binding, so a name that points at nothing is reported rather than followed. A **foreign ID block** is prose too — nothing serves it, and nothing under it is linted — so the warning exists to stop it looking like a decision. Neither is ever an error, because both are conditions a well-written file can legitimately be in.
 
 The fingerprint patterns are applied **word by word** to the statement, never across the whole string; running a character class over a long statement backtracks catastrophically. The three forms:
 
@@ -296,7 +300,9 @@ These are real behaviours of the 2.2.0 implementation. v3 keeps them, fixtures p
 2. **Area label.** The label spans every area segment (`enemy-ai`), which is what grouping, `--area` and `area_map` use.
 3. **Issue codes.** Lint issues carry a stable machine code beside their message, so an adapter can report structure without pinning prose.
 4. **The length warning counts the entry, not its neighbourhood.** 2.2.0 counted every non-blank line from an entry's ID line to the next ID line, so a heading and a paragraph after the closing blank line could make a one-line rule look nine lines long. v3 counts only the lines the entry occupies.
-5. **Swallowed identifiers are reported.** `  DEC-INPUT-002: rule` (an entry indented off column 0) and `DEC-INPUT 003: rule` (a space where the hyphen belongs) were absorbed into the statement above them with no diagnostic in 2.2.0, which is the same silent loss the grammar change exists to end. Both are now `malformed_id` ([§5.3](#53-near-miss-identifiers-that-must-fail)). No live project contains either shape, so nothing gains an error today, and parsing is unchanged: the line still continues the statement until someone fixes it.
+5. **A reference to an absent ID is reported.** An entry that names another decision's ID — in its statement or a field — gets a `dangling_reference` warning when that ID is not in the file ([§6.2](#62-warnings)). This is the first release where archiving is easy, and archiving is what leaves references pointing at a non-binding record. A warning, not an error: the reference is prose and the rule it sits in still binds.
+6. **Blocks in another ID vocabulary are named.** `OPEN-001:` was invisible in 2.2.0 — not an entry, not an error, not mentioned anywhere. v3 emits one `foreign_id_block` warning per such line, saying it is prose. It stays a warning: an open-questions section inside the file is untidy, not invalid.
+7. **Swallowed identifiers are reported.** `  DEC-INPUT-002: rule` (an entry indented off column 0) and `DEC-INPUT 003: rule` (a space where the hyphen belongs) were absorbed into the statement above them with no diagnostic in 2.2.0, which is the same silent loss the grammar change exists to end. Both are now `malformed_id` ([§5.3](#53-near-miss-identifiers-that-must-fail)). No live project contains either shape, so nothing gains an error today, and parsing is unchanged: the line still continues the statement until someone fixes it.
 
 One thing deliberately *not* changed, because it looks like an oversight and is not: a `Status:` line inside a closed fence is still reported ([§8](#behaviour-carried-over-from-220)), even though the fence's contents are never entries.
 

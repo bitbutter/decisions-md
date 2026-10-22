@@ -18,6 +18,10 @@ export const NEAR_DUPLICATE_PAIR_BUDGET = 60000;
 export const NEAR_DUPLICATE_MAX_TOKENS = 60;
 
 const STATUS_LINE_RE = /^Status:/;
+/** A decision ID as it appears in prose: DEC-INPUT-007, DEC-ENEMY-AI-003. */
+const REFERENCE_RE = /\bDEC-[A-Z]{2,}(?:-[A-Z]{2,})*-\d{3}\b/g;
+/** An identifier-shaped line from any other vocabulary: OPEN-001, TODO-12. */
+const FOREIGN_ID_RE = /^([A-Z][A-Z0-9]*(?:-[A-Za-z0-9]+)+)\s*:/;
 /** The leading ID-shaped token, at any indentation. */
 const ID_TOKEN_RE = /^([ \t]*)(DEC[-_][^\s:]*)[ \t]*:/i;
 /** The same, with one extra token before the colon: "DEC-INPUT 003: ...". */
@@ -115,6 +119,29 @@ function scanIdShapedLines(text: string, errors: Issue[]): void {
 	}
 }
 
+/**
+ * Report a block written in some other ID vocabulary, at column 0, once.
+ *
+ * `OPEN-001:` is prose: it is not a decision, nothing serves it, and lint does
+ * not check what follows it. Saying so once is the difference between a document
+ * that happens to hold open questions and a rule nobody is being shown.
+ */
+function scanForeignIds(text: string, warnings: Issue[]): void {
+	const lines = text.split(/\n/);
+	for (let i = 0; i < lines.length; i += 1) {
+		const line = lines[i] ?? "";
+		const match = FOREIGN_ID_RE.exec(line);
+		const id = match?.[1];
+		if (!id || id.toUpperCase().startsWith("DEC-")) continue;
+		const lineNo = i + 1;
+		warnings.push({
+			code: "foreign_id_block",
+			line: lineNo,
+			message: `line ${lineNo}: \`${id}\` is written like an identifier but is not a decision, so it is prose: nothing serves it and nothing below it is linted. Either rewrite it as a DEC-<AREA>-<NNN> entry or move it out of this file.`,
+		});
+	}
+}
+
 /** Check one file. Issues are ordered by line, file-level first, then by code. */
 export function lintFile(file: string): LintResult {
 	const read = readDecisionsFile(file);
@@ -157,6 +184,7 @@ export function lintFile(file: string): LintResult {
 	}
 
 	scanIdShapedLines(text, errors);
+	scanForeignIds(text, warnings);
 
 	const entries = parseDecisions(text);
 	const seen = new Map<string, number>();
@@ -180,6 +208,8 @@ export function lintFile(file: string): LintResult {
 		}
 	}
 
+	const presentIds = new Set(entries.map((item) => item.id));
+
 	for (const entry of entries) {
 		if (entry.lineCount > MAX_ENTRY_LINES) {
 			warnings.push({
@@ -194,6 +224,16 @@ export function lintFile(file: string): LintResult {
 				code: "statement_too_long",
 				line: entry.line,
 				message: `line ${entry.line}: ${entry.id} states its rule in ${words} words. Past ~${MAX_STATEMENT_WORDS} an entry is usually several rules wearing one ID -- split it, or cut it back to the rule.`,
+			});
+		}
+		const referenced = [...new Set((`${entry.statement} ${entry.fields.map((f) => f.value).join(" ")}`.match(REFERENCE_RE) ?? []))]
+			.filter((id) => !presentIds.has(id));
+		if (referenced.length > 0) {
+			const missing = referenced.length === 1 ? "which is not an entry" : "which are not entries";
+			warnings.push({
+				code: "dangling_reference",
+				line: entry.line,
+				message: `line ${entry.line}: ${entry.id} refers to ${referenced.join(", ")}, ${missing} in this file. A reference is not a rule, and an archived record stops binding, so say what is true here or point at an entry that exists.`,
 			});
 		}
 		const hit = fingerprint(entry.statement);

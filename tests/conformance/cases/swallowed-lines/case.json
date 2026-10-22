@@ -1,7 +1,7 @@
 {
   "name": "swallowed-lines",
   "description": "Four non-entry lines that continue the statement above them (two now reported, two still silent), and two entries written back to back.",
-  "notes": "Each of the four swallowed lines joins the statement above it, which is why the query step pins the exact joined text: reporting an error must not change how the file parses. The first two are now errors as well (an entry indented off column 0, and a space where the hyphen belongs), because 2.2.0 absorbed those in silence; spec/FORMAT.md section 9 records that change. The other two are traps v3 keeps on purpose (section 8): a heading under a statement, and an indented Status line. If a port ever reports those two, or stops parsing the swallowed lines as statement text, this case fails, which is the point.",
+  "notes": "Each of the four swallowed lines joins the statement above it, which is why the query step pins the exact joined text: reporting an error must not change how the file parses. The first two are now errors as well (an entry indented off column 0, and a space where the hyphen belongs), because 2.2.0 absorbed those in silence; spec/FORMAT.md section 9 records that change. The other two are traps v3 keeps on purpose (section 8): a heading under a statement, and an indented Status line. If a port ever reports those two, or stops parsing the swallowed lines as statement text, this case fails, which is the point. The lint step now expects one warning as well: the swallowed DEC-TRAP-002 line leaves a reference to an ID that is not an entry, so dangling_reference fires on DEC-TRAP-001.",
   "project": "project",
   "steps": [
     {
@@ -61,7 +61,7 @@
           ],
           "counts": {
             "errors": 2,
-            "warnings": 0
+            "warnings": 1
           }
         }
       }
