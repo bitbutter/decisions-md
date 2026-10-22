@@ -1,0 +1,60 @@
+{
+  "name": "crlf-migrate",
+  "description": "Migration of a CRLF file keeps every surviving line's own terminator.",
+  "notes": "A tiny diff is the whole point: rebuilding the file from stripped lines would rewrite its line endings and turn a one-line deletion into a whole-file diff. The expected file is CRLF and is compared byte for byte.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "write-preserves-crlf",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "write"
+      },
+      "expect": {
+        "action": "none",
+        "code": "migrated",
+        "details": {
+          "removed": 1,
+          "kept": 0
+        },
+        "files": {
+          "project/DECISIONS.md": "expected/DECISIONS.md"
+        }
+      }
+    },
+    {
+      "id": "clean-afterwards",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "none",
+        "code": "clean",
+        "details": {
+          "entries": 2,
+          "counts": {
+            "errors": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "second-write-is-a-no-op",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "write"
+      },
+      "expect": {
+        "action": "none",
+        "code": "nothing_to_migrate",
+        "files": {
+          "project/DECISIONS.md": "expected/DECISIONS.md"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "name": "lint-errors",
+  "description": "Duplicate ID, empty statement, and a file saved in a Windows codepage rather than UTF-8.",
+  "notes": "Decoding is lenient on purpose: a replacement character in one word beats a traceback on every edit, so the entry still parses and the encoding is reported separately. Both duplicates remain entries, and an entry with no statement is not rendered to the model, because there is no rule in it.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "duplicate-and-empty",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "details": {
+          "entries": 3,
+          "errors": [
+            {
+              "line": 3,
+              "code": "duplicate_id"
+            },
+            {
+              "line": 5,
+              "code": "missing_statement"
+            }
+          ],
+          "counts": {
+            "errors": 2,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "codepage-file-still-parses",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/alt/latin1.md"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "details": {
+          "entries": 1,
+          "errors": [
+            {
+              "code": "not_utf8"
+            }
+          ],
+          "counts": {
+            "errors": 1,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "empty-statement-is-not-served",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/combat/hit.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "textIncludes": [
+          "[DECISIONS] 2 binding decisions govern src/combat/hit.gd (area: combat)."
+        ],
+        "textExcludes": [
+          "DEC-COMBAT-002"
+        ],
+        "details": {
+          "ids": [
+            "DEC-COMBAT-001",
+            "DEC-COMBAT-001"
+          ]
+        }
+      }
+    }
+  ]
+}

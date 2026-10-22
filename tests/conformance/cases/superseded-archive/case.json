@@ -1,0 +1,147 @@
+{
+  "name": "superseded-archive",
+  "description": "Three superseded records, all naming a successor that parses: archived, then stripped, never the other way round.",
+  "notes": "Stripping without archiving promotes a dead rule back to binding, so the archive is written and verified first. After the run the three records are not entries any more: the decide step excludes them, which is the point of the exercise. now is supplied so the archive header is reproducible.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "lint-before",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "details": {
+          "entries": 6,
+          "errors": [
+            {
+              "line": 7,
+              "code": "status_line"
+            },
+            {
+              "line": 10,
+              "code": "status_line"
+            },
+            {
+              "line": 15,
+              "code": "status_line"
+            }
+          ],
+          "counts": {
+            "errors": 3,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "check-finds-the-three",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "check"
+      },
+      "expect": {
+        "action": "block",
+        "code": "needs_migration",
+        "details": {
+          "trivialStatus": 0,
+          "nontrivialStatus": 0,
+          "formatErrors": 3,
+          "superseded": [
+            {
+              "line": 6,
+              "id": "DEC-COMBAT-012",
+              "successor": "DEC-COMBAT-014"
+            },
+            {
+              "line": 9,
+              "id": "DEC-COMBAT-013",
+              "successor": "DEC-COMBAT-014"
+            },
+            {
+              "line": 14,
+              "id": "DEC-COMBAT-015",
+              "successor": "DEC-COMBAT-014"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "archive-then-strip",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "archive-superseded",
+        "now": "2026-10-23T09:00:00Z"
+      },
+      "expect": {
+        "action": "none",
+        "code": "archived",
+        "textIncludes": [
+          "3"
+        ],
+        "details": {
+          "archived": 3,
+          "archiveFile": "support/decision_archive.md"
+        },
+        "files": {
+          "project/DECISIONS.md": "expected/DECISIONS.md",
+          "project/support/decision_archive.md": "expected/support/decision_archive.md"
+        }
+      }
+    },
+    {
+      "id": "check-is-clean-afterwards",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "check"
+      },
+      "expect": {
+        "action": "none",
+        "code": "clean",
+        "details": {
+          "trivialStatus": 0,
+          "nontrivialStatus": 0,
+          "formatErrors": 0,
+          "superseded": []
+        }
+      }
+    },
+    {
+      "id": "archived-records-stop-binding",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/combat/turn.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "textIncludes": [
+          "[DECISIONS] 3 binding decisions govern src/combat/turn.gd (area: combat).",
+          "DEC-COMBAT-011: Enemy phases resolve top to bottom.",
+          "DEC-COMBAT-014: Figures have no facing state and always render the front sprite.",
+          "DEC-COMBAT-016: A turn is exactly one card play or Skip."
+        ],
+        "textExcludes": [
+          "DEC-COMBAT-012",
+          "DEC-COMBAT-013",
+          "DEC-COMBAT-015"
+        ],
+        "details": {
+          "ids": [
+            "DEC-COMBAT-011",
+            "DEC-COMBAT-014",
+            "DEC-COMBAT-016"
+          ]
+        }
+      }
+    }
+  ]
+}

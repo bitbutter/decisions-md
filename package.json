@@ -1,0 +1,30 @@
+{
+  "name": "decisions-md",
+  "version": "3.0.0-rc.1",
+  "description": "Delivers a project's binding DECISIONS.md rules to a coding agent at the moment it edits code",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "bin": {
+    "decisions": "./bin/decisions.ts"
+  },
+  "pi": {
+    "extensions": [
+      "./harnesses/pi/index.ts"
+    ]
+  },
+  "keywords": [
+    "pi-package",
+    "decisions"
+  ],
+  "scripts": {
+    "test": "node --test tests/core/*.test.ts",
+    "conformance": "node tests/conformance/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}

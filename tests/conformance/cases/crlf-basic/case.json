@@ -1,0 +1,198 @@
+{
+  "name": "crlf-basic",
+  "description": "The lf-basic project saved with CRLF line endings.",
+  "notes": "Identical expectations to lf-basic, byte for byte. This is the load-bearing case: an unnormalised CRLF file yields zero entries and zero issues, because (.+)$ cannot match before a carriage return. If normalisation is ever removed, this case fails while every LF case still passes.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "first-edit-in-input",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/input/player.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "text": "[DECISIONS] 2 binding decisions govern src/input/player.gd (area: input).\nRead them, then re-run your edit. Nothing else is required to proceed.\n\nDEC-INPUT-001: Jumping is bound to the A button.\nDEC-INPUT-002: Holding the jump button does not increase jump height.\n\nIf one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on.",
+        "details": {
+          "decisionsFile": "DECISIONS.md",
+          "areas": [
+            "input"
+          ],
+          "ids": [
+            "DEC-INPUT-001",
+            "DEC-INPUT-002"
+          ],
+          "withheld": 0
+        }
+      }
+    },
+    {
+      "id": "second-area-is-independent",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/economy/shop.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "text": "[DECISIONS] 2 binding decisions govern src/economy/shop.gd (area: economy).\nRead them, then re-run your edit. Nothing else is required to proceed.\n\nDEC-ECONOMY-001: Gold is earned in combat only, never from exploring.\nDEC-ECONOMY-002: A shop purchase is final; there are no refunds.\n\nIf one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on.",
+        "details": {
+          "areas": [
+            "economy"
+          ],
+          "ids": [
+            "DEC-ECONOMY-001",
+            "DEC-ECONOMY-002"
+          ]
+        }
+      }
+    },
+    {
+      "id": "same-area-is-served-once",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/input/player.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "already_served",
+        "text": ""
+      }
+    },
+    {
+      "id": "new-session-serves-again",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/input/player.gd",
+        "session": "sess-2"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "text": "[DECISIONS] 2 binding decisions govern src/input/player.gd (area: input).\nRead them, then re-run your edit. Nothing else is required to proceed.\n\nDEC-INPUT-001: Jumping is bound to the A button.\nDEC-INPUT-002: Holding the jump button does not increase jump height.\n\nIf one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on."
+      }
+    },
+    {
+      "id": "unrelated-path-is-silent",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/ui/hud.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "no_matching_area",
+        "text": ""
+      }
+    },
+    {
+      "id": "orientation",
+      "verb": "orient",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "oriented",
+        "text": "[DECISIONS] This project has binding design decisions. Code and tests must follow them.\n  Relevant decisions are shown to you automatically before your first edit in each area.\n  If one contradicts what is being asked, stop and offer: abandon / adapt / override.\n  On file: 4 decisions (economy:2, input:2)",
+        "details": {
+          "decisionsFile": "DECISIONS.md",
+          "entries": 4
+        }
+      }
+    },
+    {
+      "id": "query-one-area",
+      "verb": "query",
+      "input": {
+        "root": "$PROJECT",
+        "area": "input",
+        "session": "sess-2"
+      },
+      "expect": {
+        "action": "none",
+        "code": "found",
+        "textIncludes": [
+          "[DECISIONS] 2 found in area input.",
+          "DEC-INPUT-001: Jumping is bound to the A button.",
+          "  Context: The A button is the only control the tutorial teaches first.",
+          "DEC-INPUT-002: Holding the jump button does not increase jump height."
+        ],
+        "details": {
+          "areas": [
+            "input"
+          ],
+          "ids": [
+            "DEC-INPUT-001",
+            "DEC-INPUT-002"
+          ],
+          "total": 2,
+          "shown": 2
+        }
+      }
+    },
+    {
+      "id": "query-counts-as-served",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/input/player.gd",
+        "session": "sess-2"
+      },
+      "expect": {
+        "action": "none",
+        "code": "already_served",
+        "text": ""
+      }
+    },
+    {
+      "id": "lint-clean",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "none",
+        "code": "clean",
+        "details": {
+          "entries": 4,
+          "counts": {
+            "errors": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "doctor-runs",
+      "verb": "doctor",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "none",
+        "code": "ok"
+      }
+    },
+    {
+      "id": "bad-payload-fails-open",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "fail",
+        "code": "invalid_input"
+      }
+    }
+  ]
+}

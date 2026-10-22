@@ -1,0 +1,70 @@
+{
+  "name": "swallowed-lines",
+  "description": "Four non-entry lines that continue the statement above them (two now reported, two still silent), and two entries written back to back.",
+  "notes": "Each of the four swallowed lines joins the statement above it, which is why the query step pins the exact joined text: reporting an error must not change how the file parses. The first two are now errors as well (an entry indented off column 0, and a space where the hyphen belongs), because 2.2.0 absorbed those in silence; spec/FORMAT.md section 9 records that change. The other two are traps v3 keeps on purpose (section 8): a heading under a statement, and an indented Status line. If a port ever reports those two, or stops parsing the swallowed lines as statement text, this case fails, which is the point.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "absorbed-lines-join-the-statement",
+      "verb": "query",
+      "input": {
+        "root": "$PROJECT",
+        "area": "trap",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "found",
+        "textIncludes": [
+          "[DECISIONS] 6 found in area trap.",
+          "DEC-TRAP-001: first rule DEC-TRAP-002: an indented ID is absorbed",
+          "DEC-TRAP-003: a space instead of a hyphen DEC-TRAP 004: is absorbed too",
+          "DEC-TRAP-005: a heading written under a statement ## Not a heading boundary",
+          "DEC-TRAP-006: an indented status line Status: Active",
+          "DEC-TRAP-007: adjacent entries",
+          "DEC-TRAP-008: both parse"
+        ],
+        "details": {
+          "ids": [
+            "DEC-TRAP-001",
+            "DEC-TRAP-003",
+            "DEC-TRAP-005",
+            "DEC-TRAP-006",
+            "DEC-TRAP-007",
+            "DEC-TRAP-008"
+          ],
+          "total": 6,
+          "shown": 6
+        }
+      }
+    },
+    {
+      "id": "two-shapes-are-reported-three-are-not",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "details": {
+          "entries": 6,
+          "errors": [
+            {
+              "line": 2,
+              "code": "malformed_id"
+            },
+            {
+              "line": 5,
+              "code": "malformed_id"
+            }
+          ],
+          "counts": {
+            "errors": 2,
+            "warnings": 0
+          }
+        }
+      }
+    }
+  ]
+}

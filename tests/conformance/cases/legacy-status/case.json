@@ -1,0 +1,100 @@
+{
+  "name": "legacy-status",
+  "description": "Plain Status lines are removed by migrate --write; a Status line carrying extra prose is kept, because that prose is where a statement ended up.",
+  "notes": "The second Status line on DEC-SCORE-002 is the shape a live project has at line 751: a statement was appended to a Status line, so 271 Status lines described 270 entries. Deleting that line would delete a rule. The second --write is a no-op and the file stays byte-identical.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "four-status-lines",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "details": {
+          "entries": 3,
+          "errors": [
+            {
+              "line": 2,
+              "code": "status_line"
+            },
+            {
+              "line": 5,
+              "code": "status_line"
+            },
+            {
+              "line": 6,
+              "code": "status_line"
+            },
+            {
+              "line": 9,
+              "code": "status_line"
+            }
+          ],
+          "counts": {
+            "errors": 4,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "write-removes-only-trivial",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "write"
+      },
+      "expect": {
+        "action": "none",
+        "code": "migrated",
+        "details": {
+          "removed": 3,
+          "kept": 1
+        },
+        "files": {
+          "project/DECISIONS.md": "expected/DECISIONS.md"
+        }
+      }
+    },
+    {
+      "id": "second-write-is-a-no-op",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "write"
+      },
+      "expect": {
+        "action": "none",
+        "code": "nothing_to_migrate",
+        "details": {
+          "removed": 0,
+          "kept": 1
+        },
+        "files": {
+          "project/DECISIONS.md": "expected/DECISIONS.md"
+        }
+      }
+    },
+    {
+      "id": "the-swallowed-statement-still-blocks",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "check"
+      },
+      "expect": {
+        "action": "block",
+        "code": "needs_migration",
+        "details": {
+          "trivialStatus": 0,
+          "nontrivialStatus": 1,
+          "superseded": [],
+          "formatErrors": 1
+        }
+      }
+    }
+  ]
+}

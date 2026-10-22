@@ -1,0 +1,144 @@
+{
+  "name": "uncovered-backstop",
+  "description": "The single backstop question about work in territory no decision covers, and every case where it stays quiet.",
+  "notes": "Order matters: pending edits are taken (and cleared) before the claim is consulted, so a second call with nothing new is no_pending_edits, while a new edit after the question was already asked is already_asked. Asking only about uncovered areas, once per session, is what keeps a decisions file from filling with entries nobody needed.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "nothing-covers-audio",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/audio/mixer.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "no_matching_area",
+        "text": ""
+      }
+    },
+    {
+      "id": "record-the-edit",
+      "verb": "record-edit",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/audio/mixer.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "recorded"
+      }
+    },
+    {
+      "id": "asks-once",
+      "verb": "uncovered",
+      "input": {
+        "root": "$PROJECT",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "uncovered_edits",
+        "text": "This session edited files in territory no decision currently covers: src/audio/mixer.gd.\n\nDefault answer: no entry is needed. Pure implementation, refactors, bug fixes and anything a user or designer would never notice do not belong in DECISIONS.md.\n\nOnly if the work settled a USER- OR DESIGNER-FACING rule -- what a control does, a balance value, a UX rule, a win condition -- propose ONE entry: the binding statement in a sentence or two, plus a brief why. No file paths, no function names, no account of how a bug was found. Before proposing it, check existing decisions and name the one you checked against.\n\nIf no entry is needed, reply with exactly this line and nothing else:\nNo DECISIONS.md change needed.",
+        "details": {
+          "paths": [
+            "src/audio/mixer.gd"
+          ]
+        }
+      }
+    },
+    {
+      "id": "taken-edits-are-gone",
+      "verb": "uncovered",
+      "input": {
+        "root": "$PROJECT",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "no_pending_edits",
+        "text": ""
+      }
+    },
+    {
+      "id": "record-another-uncovered-edit",
+      "verb": "record-edit",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/audio/mixer.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "recorded"
+      }
+    },
+    {
+      "id": "does-not-ask-twice",
+      "verb": "uncovered",
+      "input": {
+        "root": "$PROJECT",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "already_asked",
+        "text": ""
+      }
+    },
+    {
+      "id": "covered-work-is-not-asked-about",
+      "verb": "record-edit",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/input/player.gd",
+        "session": "sess-2"
+      },
+      "expect": {
+        "action": "none",
+        "code": "recorded"
+      }
+    },
+    {
+      "id": "covered-session-is-silent",
+      "verb": "uncovered",
+      "input": {
+        "root": "$PROJECT",
+        "session": "sess-2"
+      },
+      "expect": {
+        "action": "none",
+        "code": "all_covered",
+        "text": ""
+      }
+    },
+    {
+      "id": "writing-the-file-marks-it",
+      "verb": "record-edit",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/DECISIONS.md",
+        "session": "sess-3"
+      },
+      "expect": {
+        "action": "none",
+        "code": "recorded_decisions_file"
+      }
+    },
+    {
+      "id": "touched-session-is-silent",
+      "verb": "uncovered",
+      "input": {
+        "root": "$PROJECT",
+        "session": "sess-3"
+      },
+      "expect": {
+        "action": "none",
+        "code": "decisions_touched",
+        "text": ""
+      }
+    }
+  ]
+}

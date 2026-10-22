@@ -1,0 +1,192 @@
+{
+  "name": "scope-and-config",
+  "description": "Project config, path scope, an out-of-project file, a disabled project and a project with no DECISIONS.md.",
+  "notes": "tracked_extensions replaces the defaults, so .py is untracked here even though it is a default. area_map is the highest-confidence match tier. The precedence order in docs/ADAPTERS.md section 5.1 is what decides which code comes back, and every step below would give a different code under a different order.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "area-map-wins-the-tier",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/systems/ledger.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "text": "[DECISIONS] 1 binding decision governs src/systems/ledger.gd (area: economy).\nRead them, then re-run your edit. Nothing else is required to proceed.\n\nDEC-ECONOMY-001: Gold is earned in combat only.\n\nIf one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on.",
+        "details": {
+          "areas": [
+            "economy"
+          ],
+          "ids": [
+            "DEC-ECONOMY-001"
+          ]
+        }
+      }
+    },
+    {
+      "id": "untracked-extension",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/input/player.py",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "untracked_extension",
+        "text": ""
+      }
+    },
+    {
+      "id": "exempt-prefix",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/tools/build.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "exempt_path",
+        "text": ""
+      }
+    },
+    {
+      "id": "exempt-prefix-nested",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/addons/art_import/import.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "exempt_path",
+        "text": ""
+      }
+    },
+    {
+      "id": "outside-the-project",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$CASE/outside/src/systems/ledger.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "outside_project",
+        "text": ""
+      }
+    },
+    {
+      "id": "area-name-in-path",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/input/player.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "text": "[DECISIONS] 1 binding decision governs src/input/player.gd (area: input).\nRead them, then re-run your edit. Nothing else is required to proceed.\n\nDEC-INPUT-001: Jumping is bound to the A button.\n\nIf one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on.",
+        "details": {
+          "areas": [
+            "input"
+          ],
+          "ids": [
+            "DEC-INPUT-001"
+          ]
+        }
+      }
+    },
+    {
+      "id": "disabled-project",
+      "verb": "decide",
+      "input": {
+        "root": "$CASE/disabled",
+        "file": "$CASE/disabled/src/input/player.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "disabled_by_config",
+        "text": ""
+      }
+    },
+    {
+      "id": "disabled-project-orient",
+      "verb": "orient",
+      "input": {
+        "root": "$CASE/disabled"
+      },
+      "expect": {
+        "action": "none",
+        "code": "disabled_by_config",
+        "text": ""
+      }
+    },
+    {
+      "id": "project-without-decisions",
+      "verb": "decide",
+      "input": {
+        "root": "$CASE/empty",
+        "file": "$CASE/empty/src/input/player.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "no_decisions_file",
+        "text": ""
+      }
+    },
+    {
+      "id": "lint-without-decisions",
+      "verb": "lint",
+      "input": {
+        "root": "$CASE/empty"
+      },
+      "expect": {
+        "action": "none",
+        "code": "no_decisions_file",
+        "text": ""
+      }
+    },
+    {
+      "id": "root-file-wins-discovery",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "none",
+        "code": "clean",
+        "details": {
+          "entries": 2,
+          "counts": {
+            "errors": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "config-file-is-not-tracked",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/DECISIONS.md",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "untracked_extension",
+        "text": ""
+      }
+    }
+  ]
+}

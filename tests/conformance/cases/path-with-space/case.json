@@ -1,0 +1,57 @@
+{
+  "name": "path-with-space",
+  "description": "Directory names and file names containing spaces, including a capital letter.",
+  "notes": "Spaces appear in the project-relative path the engine reports and in every path it compares. The runner also copies each case into a temporary directory whose own name contains a space, so the absolute paths carry one too.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "spaces-in-path",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/combat/my dodge engine.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "text": "[DECISIONS] 1 binding decision governs src/combat/my dodge engine.gd (area: combat).\nRead them, then re-run your edit. Nothing else is required to proceed.\n\nDEC-COMBAT-001: A hit that lands on the same frame as a dodge is a dodge.\n\nIf one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on.",
+        "details": {
+          "areas": [
+            "combat"
+          ],
+          "ids": [
+            "DEC-COMBAT-001"
+          ]
+        }
+      }
+    },
+    {
+      "id": "spaces-recorded",
+      "verb": "record-edit",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/combat/my dodge engine.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "recorded"
+      }
+    },
+    {
+      "id": "spaces-and-capitals-nested",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/combat/deep/My Dodge Engine.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "already_served",
+        "text": ""
+      }
+    }
+  ]
+}

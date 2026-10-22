@@ -1,0 +1,104 @@
+{
+  "name": "fences-prose",
+  "description": "Headings and prose between entries are ignored; a closed fence's contents are not entries; an unclosed fence is an error and blanks nothing.",
+  "notes": "The closed fence hides a dec-shaped example AND a Status line. Parsing ignores the fence's contents, but the legacy scan still reports the Status line, which is the 2.2.0 behaviour this case pins (spec/FORMAT.md section 8). The unclosed file keeps both decisions: reporting and keeping is the safer pair, since blanking would silently drop every later rule.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "fenced-example-is-not-an-entry",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "details": {
+          "entries": 2,
+          "errors": [
+            {
+              "line": 12,
+              "code": "status_line"
+            }
+          ],
+          "counts": {
+            "errors": 1,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "unclosed-fence-blanks-nothing",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/alt/unclosed.md"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "details": {
+          "entries": 2,
+          "errors": [
+            {
+              "line": 3,
+              "code": "unclosed_fence"
+            }
+          ],
+          "counts": {
+            "errors": 1,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "fenced-example-never-binds",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/render/sprite.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "textIncludes": [
+          "[DECISIONS] 2 binding decisions govern src/render/sprite.gd (area: render).",
+          "DEC-RENDER-001: Sprites are drawn in one atlas per scene. The atlas is rebuilt only at scene load.",
+          "DEC-RENDER-002: A shader variant is compiled at load, never at draw."
+        ],
+        "textExcludes": [
+          "DEC-RENDER-900"
+        ]
+      }
+    },
+    {
+      "id": "prose-is-not-content",
+      "verb": "query",
+      "input": {
+        "root": "$PROJECT",
+        "terms": "atlas",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "none",
+        "code": "found",
+        "textIncludes": [
+          "DEC-RENDER-001: Sprites are drawn in one atlas per scene. The atlas is rebuilt only at scene load."
+        ],
+        "textExcludes": [
+          "are for humans and are not part of any entry"
+        ],
+        "details": {
+          "ids": [
+            "DEC-RENDER-001"
+          ],
+          "total": 1,
+          "shown": 1
+        }
+      }
+    }
+  ]
+}

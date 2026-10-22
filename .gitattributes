@@ -1,0 +1,7 @@
+# Line endings: sources are LF everywhere, so a checkout on any platform produces
+# the same bytes and the same diffs.
+* text=auto eol=lf
+
+# Conformance fixtures are compared byte for byte, including the CRLF case, so git
+# must not normalise them on the way in or out.
+tests/conformance/cases/** -text

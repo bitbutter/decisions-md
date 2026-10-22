@@ -1,0 +1,139 @@
+{
+  "name": "near-miss-ids",
+  "description": "Every identifier that must fail the grammar, beside two that must parse.",
+  "notes": "DEC-ENEMY-AI-001 is the multi-segment case the v3 grammar adds, and 24 such records are invisible in a live project today. Everything else on this page is a near miss that must be reported, never skipped: an ID that does not parse is a rule nobody is shown. Line numbers are 1-based over the normalised text, and issues are ordered by line then code.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "multi-segment-area-serves",
+      "verb": "decide",
+      "input": {
+        "root": "$PROJECT",
+        "file": "$PROJECT/src/enemy_ai/monster.gd",
+        "session": "sess-1"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "served",
+        "text": "[DECISIONS] 1 binding decision governs src/enemy_ai/monster.gd (area: enemy-ai).\nRead them, then re-run your edit. Nothing else is required to proceed.\n\nDEC-ENEMY-AI-001: Monster behaviour is decided by one shared classifier.\n\nIf one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on.",
+        "details": {
+          "areas": [
+            "enemy-ai"
+          ],
+          "ids": [
+            "DEC-ENEMY-AI-001"
+          ]
+        }
+      }
+    },
+    {
+      "id": "every-near-miss-is-an-error",
+      "verb": "lint",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "block",
+        "code": "format_errors",
+        "textIncludes": [
+          "ERRORS (12)"
+        ],
+        "details": {
+          "entries": 2,
+          "errors": [
+            {
+              "line": 5,
+              "code": "malformed_id"
+            },
+            {
+              "line": 7,
+              "code": "malformed_id"
+            },
+            {
+              "line": 9,
+              "code": "malformed_id"
+            },
+            {
+              "line": 11,
+              "code": "malformed_id"
+            },
+            {
+              "line": 13,
+              "code": "malformed_id"
+            },
+            {
+              "line": 15,
+              "code": "malformed_id"
+            },
+            {
+              "line": 17,
+              "code": "malformed_id"
+            },
+            {
+              "line": 19,
+              "code": "override_suffix_id"
+            },
+            {
+              "line": 21,
+              "code": "malformed_id"
+            },
+            {
+              "line": 23,
+              "code": "malformed_id"
+            },
+            {
+              "line": 25,
+              "code": "malformed_id"
+            },
+            {
+              "line": 27,
+              "code": "malformed_id"
+            }
+          ],
+          "counts": {
+            "errors": 12,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "area-labels-in-overview",
+      "verb": "orient",
+      "input": {
+        "root": "$PROJECT"
+      },
+      "expect": {
+        "action": "inject",
+        "code": "oriented",
+        "text": "[DECISIONS] This project has binding design decisions. Code and tests must follow them.\n  Relevant decisions are shown to you automatically before your first edit in each area.\n  If one contradicts what is being asked, stop and offer: abandon / adapt / override.\n  On file: 2 decisions (enemy-ai:1, ui:1)"
+      }
+    },
+    {
+      "id": "query-multi-segment-area",
+      "verb": "query",
+      "input": {
+        "root": "$PROJECT",
+        "area": "enemy-ai",
+        "session": "sess-2"
+      },
+      "expect": {
+        "action": "none",
+        "code": "found",
+        "textIncludes": [
+          "[DECISIONS] 1 found in area enemy-ai."
+        ],
+        "details": {
+          "areas": [
+            "enemy-ai"
+          ],
+          "ids": [
+            "DEC-ENEMY-AI-001"
+          ],
+          "total": 1,
+          "shown": 1
+        }
+      }
+    }
+  ]
+}

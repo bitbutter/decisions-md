@@ -11,3 +11,9 @@ Thumbs.db
 
 # Test artefacts
 tests/tmp/
+
+# Chainlink issue tracker: project-scoped but machine-local, never committed.
+# `chainlink init` also drops .claude/ (hooks) and .mcp.json here.
+.chainlink/
+.claude/
+.mcp.json

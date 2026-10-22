@@ -1,0 +1,65 @@
+{
+  "name": "archive-refused",
+  "description": "Archiving refuses, and writes nothing, when a superseded record names a successor that is missing or names none at all.",
+  "notes": "A refusal must leave both files untouched: no archive file appears and DECISIONS.md keeps its bytes. The second step targets an alternative file by path, because the refusal is a property of the file, not of discovery.",
+  "project": "project",
+  "steps": [
+    {
+      "id": "successor-not-parsed",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "archive-superseded",
+        "now": "2026-10-23T09:00:00Z"
+      },
+      "expect": {
+        "action": "block",
+        "code": "archive_refused_missing_successor",
+        "textIncludes": [
+          "DEC-CORE-999"
+        ],
+        "filesAbsent": [
+          "project/support/decision_archive.md"
+        ]
+      }
+    },
+    {
+      "id": "no-successor-named",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "archive-superseded",
+        "file": "$PROJECT/alt/no-successor.md",
+        "now": "2026-10-23T09:00:00Z"
+      },
+      "expect": {
+        "action": "block",
+        "code": "archive_refused_no_successor",
+        "filesAbsent": [
+          "project/support/decision_archive.md"
+        ]
+      }
+    },
+    {
+      "id": "check-still-reports-it",
+      "verb": "migrate",
+      "input": {
+        "root": "$PROJECT",
+        "mode": "check"
+      },
+      "expect": {
+        "action": "block",
+        "code": "needs_migration",
+        "details": {
+          "superseded": [
+            {
+              "line": 1,
+              "id": "DEC-CORE-001",
+              "successor": "DEC-CORE-999"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "tracked_extensions": [
+    ".gd",
+    ".json"
+  ],
+  "exempt_paths": [
+    "tools/",
+    "addons/"
+  ],
+  "area_map": {
+    "src/systems/**": "economy"
+  }
+}
