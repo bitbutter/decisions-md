@@ -57,8 +57,10 @@ and a date, and leaves the rest with line numbers. Either mode is a no-op on a s
 - **pi**: last verified against pi 0.84.2 on 2026-10-22, in a real session. The decisions
   were served at edit time, the edit was blocked, the retry passed, and the served token
   was found in the session transcript.
-- **Claude Code 2.2.0**: unchanged and unverified since the fork. Frozen at 2.2.0; the
-  Python plugin at the repo root still installs from this repository's marketplace.
+- **Claude Code 2.2.0**: unchanged since the fork. Its Python suites pass on this machine
+  as of 2026-10-22 (122 and 12 checks); no live Claude Code session has run it since the
+  fork. Frozen at 2.2.0, and the Python plugin at the repo root still installs from this
+  repository's marketplace.
 
 The test surface: 75 unit and adapter tests, 15 conformance fixtures that run twice —
 in process and through the CLI — with the two envelope sequences compared field by field,
