@@ -401,9 +401,10 @@ canonical source.
 
 ## [1.0.0] - 2026-06-24
 
-First public release. Extracted from the moresque project where the engine was
-developed and validated across 23 synthetic-payload checks (gate lock/unlock,
-binding injection, stop block-once, per-project config, portability no-op).
+First public release. The engine was built inside a game project, where design
+decisions kept being lost between sessions, and validated across 23
+synthetic-payload checks (gate lock/unlock, binding injection, stop block-once,
+per-project config, portability no-op).
 
 ### Added
 - `decisions_gate.py` — PreToolUse gate: blocks edits to tracked files until

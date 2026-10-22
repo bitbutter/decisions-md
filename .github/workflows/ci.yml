@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: ${{ matrix.os }}
+  plugin-2:
+    name: plugin 2.2.0 / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -63,3 +63,44 @@ jobs:
 
       - name: Synthetic-payload harness
         run: python tests/verify_plugin.py -v
+
+  v3:
+    name: v3 / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # The engine normalises CRLF and BOM before parsing, and the state
+      # directory is keyed by a hash of the project path. Both are the kind of
+      # thing that works on one OS and not another, so every OS reports alone.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.18"
+          cache: npm
+
+      - name: Install
+        # Dev dependencies only: typescript for the typecheck, @types/node for
+        # the tests. The package itself has no runtime dependencies.
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit, adapter and fifth-adapter tests
+        run: npm test
+
+      - name: Conformance
+        # Every fixture runs twice -- in process and through bin/decisions.ts --
+        # and the two envelope sequences must be identical.
+        run: npm run conformance
