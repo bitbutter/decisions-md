@@ -2,7 +2,7 @@
 
 ## Two products in one tree
 
-* **v3** is the TypeScript engine: `spec/FORMAT.md` (the format, normative), `docs/ADAPTERS.md` (envelope, verbs, pi mapping), `core/`, `bin/decisions.ts`, `harnesses/pi/`, `tests/core/`, `tests/conformance/`. Node 22 runs the `.ts` sources directly. Checks: `node tests/conformance/run.ts` and `node --test tests/core/*.test.ts`.
+* **v3** is the TypeScript engine: `spec/FORMAT.md` (the format, normative), `docs/ADAPTERS.md` (envelope, verbs, pi mapping), `core/`, `bin/decisions.ts`, `harnesses/pi/`, `tests/core/`, `tests/conformance/`. Node 22 runs the `.ts` sources directly. Checks: `npm install` once, then `npm test` (unit + adapter + fifth-adapter), `npm run conformance` (fixtures, in process and through the CLI), `npm run typecheck`, and `npm run live` (one real pi turn; reports pass/fail/unchecked).
 * **2.2.0** is the Python plugin at the root (`hooks/`, `commands/`, `skills/`, `.claude-plugin/`). It is frozen: critical fixes only, no new features, no port. Claude Code and Codex installs point at those paths.
 * The rest of this file describes 2.2.0. Where it and `spec/FORMAT.md` disagree, the spec wins for v3.
 

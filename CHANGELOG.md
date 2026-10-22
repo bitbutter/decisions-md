@@ -1,5 +1,56 @@
 # Changelog
 
+## [3.0.0-rc.1] - 2026-10-22
+
+### Added — the v3 engine, as a pi package
+
+The engine is rewritten in TypeScript, under `core/`, and exported as plain functions. It
+answers every request with one of four actions: `none`, `inject`, `block`, `fail`. The
+package ships source, needs Node 22.18 or newer, and has no dependencies at runtime.
+
+`harnesses/pi/` is the only adapter. It blocks the first edit in each new area with the
+decisions that govern that path, queues the orientation block for the next prompt at
+session start and again after compaction, asks the uncovered question once per session,
+and attaches the lint report to any write of `DECISIONS.md`.
+
+`bin/decisions.ts` is the subprocess envelope — one JSON object in on stdin, one out on
+stdout, exit 0 for every handled request including `block` and `fail`. It exists for
+harnesses that cannot import core.
+
+`spec/FORMAT.md` is the normative format and `docs/ADAPTERS.md` is the adapter contract.
+Where either disagrees with 2.2.0, v3 follows the document.
+
+### Changed — the format
+
+- **Multi-segment area IDs parse.** `DEC-ENEMY-AI-001` was reported as not binding and was
+  invisible to the agent; it is now an entry in area `enemy-ai`. A 2.x file can gain
+  entries without being edited.
+- **`Status:` lines are format errors.** Every entry in the file is binding, and git holds
+  the history. Lint blocks on them.
+- **Superseded records are format errors** until they are archived out of the file.
+- **Override-suffix IDs are gone.** `DEC-INPUT-001d` is not an entry.
+- An ID that looks like a decision but does not parse is always reported, never skipped.
+
+### Added — migrate
+
+`/decisions-migrate` checks, writes or archives. `--archive-superseded` moves superseded
+records into `support/decision_archive.md` with a dated header and then strips them, and
+refuses the whole run — writing nothing — when a record names no successor or names one
+that is not an entry. `--write` removes only `Status:` lines that carry nothing but a state
+and a date, and leaves the rest with line numbers. Either mode is a no-op on a second run.
+
+### Verified
+
+- **pi**: last verified against pi 0.84.2 on 2026-10-22, in a real session. The decisions
+  were served at edit time, the edit was blocked, the retry passed, and the served token
+  was found in the session transcript.
+- **Claude Code 2.2.0**: unchanged and unverified since the fork. Frozen at 2.2.0; the
+  Python plugin at the repo root still installs from this repository's marketplace.
+
+The test surface: 66 unit and adapter tests, 15 conformance fixtures that run twice —
+in process and through the CLI — with the two envelope sequences compared field by field,
+and a fifth adapter written from `docs/ADAPTERS.md` alone.
+
 ## [2.2.0] - 2026-08-01
 
 ### Changed — what qualifies as a decision
