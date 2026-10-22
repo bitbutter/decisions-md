@@ -76,10 +76,25 @@ an empty description, no argument hint and, most importantly, no `allowed-tools:
 restriction. The value is quoted now and the metadata loads. Found by `claude plugin
 validate`, which had been failing in CI since 1.0.0 without anyone reading it.
 
-CI also stops applying `--strict` to the plugin manifest. It stays strict on the
-marketplace, and errors still fail both: the plugin manifest carries two warnings this
-repository will not fix — no icon, and the root `CLAUDE.md` that the validator would
-rather see as a skill — and treating those as failures is what hid the real error.
+### Added — the plugin has an icon
+
+`.claude-plugin/icon.svg`, so the marketplace listing and the plugin manager have
+something to show. A page with three rules and a check, drawn flat so it still reads at
+32 px.
+
+### Changed — one instructions file
+
+`CLAUDE.md` is gone; `AGENTS.md` holds the development instructions for both harnesses
+and now names the real directories. Two copies had drifted: the Codex-flavoured one
+pointed at `.Codex-plugin/`, which this repository does not have.
+
+### CI
+
+`claude plugin validate` no longer runs with `--strict`. Errors still fail both
+manifests; the flag only adds "warnings are failures", and this repository carried
+warnings it would not fix (no icon, the root `CLAUDE.md`, the folder that holds both
+manifests). A job that is permanently red is a job nobody reads, which is how the broken
+frontmatter above survived from 1.0.0.
 
 ## [2.2.0] - 2026-08-01
 

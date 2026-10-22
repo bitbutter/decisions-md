@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="decisions-md">
+  <title>decisions-md</title>
+  <rect width="256" height="256" rx="56" fill="#12181F"/>
+  <path d="M78 52h84l32 32v108a12 12 0 0 1-12 12H78a12 12 0 0 1-12-12V64a12 12 0 0 1 12-12Z" fill="#F4F6F8"/>
+  <path d="M162 52l32 32h-32Z" fill="#C3CDD6"/>
+  <g stroke="#12181F" stroke-width="10" stroke-linecap="round">
+    <path d="M92 112h72"/>
+    <path d="M92 140h56"/>
+    <path d="M92 168h40"/>
+  </g>
+  <circle cx="172" cy="186" r="38" fill="#46C08A" stroke="#12181F" stroke-width="10"/>
+  <path d="M158 187l11 11 21-23" fill="none" stroke="#0C1A13" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
