@@ -225,6 +225,12 @@ Critical correctness fixes only, with no new features and no port to v3. Its two
 A harness that becomes a daily driver for a week is the trigger to port it. Until then, an adapter is written against `docs/ADAPTERS.md` and not before.
 
 ```
+/plugin install decisions-md --marketplace bitbutter/decisions-md
+```
+
+On Claude Code older than 2.1.275, add the marketplace first:
+
+```
 /plugin marketplace add github.com/bitbutter/decisions-md
 /plugin install decisions-md
 ```
