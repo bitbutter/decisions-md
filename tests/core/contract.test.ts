@@ -1,25 +1,35 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
-import { promisify } from "node:util";
 import { handle } from "../../core/operations.ts";
 import { ENGINE_VERSION } from "../../core/version.ts";
 
-const run = promisify(execFile);
 const REPO = path.resolve(import.meta.dirname, "..", "..");
 const CLI = path.join(REPO, "bin", "decisions.ts");
 
-async function cli(input: string): Promise<{ code: number; stdout: string; stderr: string }> {
-	try {
-		const { stdout, stderr } = await run(process.execPath, [CLI], { input });
-		return { code: 0, stdout, stderr };
-	} catch (error) {
-		const err = error as { code?: number; stdout?: string; stderr?: string };
-		return { code: err.code ?? 1, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
-	}
+/**
+ * One JSON object in on stdin, one out on stdout. `execFile` has no `input`
+ * option, so the CLI's stdin was never written and never closed and every call
+ * in this file sat in `readFileSync(0)` until the test run timed out.
+ */
+function cli(input: string): Promise<{ code: number; stdout: string; stderr: string }> {
+	return new Promise((resolve, reject) => {
+		const child = spawn(process.execPath, [CLI], { stdio: ["pipe", "pipe", "pipe"] });
+		let stdout = "";
+		let stderr = "";
+		child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+			stdout += chunk;
+		});
+		child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+			stderr += chunk;
+		});
+		child.on("error", reject);
+		child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+		child.stdin.end(input);
+	});
 }
 
 function project(content = "DEC-AA-001: A rule.\n"): { root: string; cleanup: () => void } {
