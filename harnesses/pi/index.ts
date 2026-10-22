@@ -68,7 +68,7 @@ export default function decisionsMd(pi: ExtensionAPI): void {
 		const envelope = handle("orient", { root: ctx.cwd });
 		if (envelope.action === "inject") {
 			// The lookup line is the adapter's: core text names no command.
-			deliver(ctx, `${envelope.text}\n  Look them up: /decisions <area|keywords>`, "nextTurn");
+			deliver(`${envelope.text}\n  Look them up: /decisions <area|keywords>`, "nextTurn");
 		}
 	};
 

@@ -59,7 +59,8 @@ export function overview(entries: Entry[]): string {
 	const counts = areaCounts(entries);
 	if (counts.length === 0) return "";
 	const total = counts.reduce((sum, c) => sum + c.count, 0);
-	return `${total} decisions (${counts.map((c) => `${c.area}:${c.count}`).join(", ")})`;
+	const noun = total === 1 ? "decision" : "decisions";
+	return `${total} ${noun} (${counts.map((c) => `${c.area}:${c.count}`).join(", ")})`;
 }
 
 /** The area table printed when query is called with no arguments. */
