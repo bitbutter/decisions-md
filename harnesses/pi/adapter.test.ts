@@ -221,3 +221,62 @@ test("the commands are registered and /decisions-lint reports the format", async
 		h.cleanup();
 	}
 });
+
+test("a failed write is not recorded, so it cannot be asked about", async () => {
+	const root = project();
+	const h = start(root);
+	try {
+		await h.fire("session_start");
+		const file = path.join(root, "src", "audio", "mixer.gd");
+		await h.fire("tool_result", {
+			toolName: "write",
+			input: { path: file },
+			content: [{ type: "text", text: "permission denied" }],
+			isError: true,
+		});
+		await h.fire("turn_end");
+		assert.equal(h.sent.length, 1, "only the orientation was delivered");
+	} finally {
+		h.cleanup();
+	}
+});
+
+test("a delivery that throws is reported once and never escapes the handler", async () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "decisions-adapter-throw-"));
+	const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "decisions-adapter-throw-state-"));
+	const previous = process.env["DECISIONS_STATE_DIR"];
+	process.env["DECISIONS_STATE_DIR"] = stateDir;
+	try {
+		fs.writeFileSync(path.join(dir, "DECISIONS.md"), "DEC-INPUT-001: Jumping is bound to the A button." + String.fromCharCode(10));
+		const handlers = new Map<string, Handler>();
+		let attempts = 0;
+		decisionsMd({
+			on(name: string, handler: Handler) {
+				handlers.set(name, handler);
+			},
+			sendMessage() {
+				attempts += 1;
+				throw new Error("session is not ready");
+			},
+			registerCommand() {
+				// none of the commands are used here
+			},
+		} as never);
+		const ctx = {
+			cwd: dir,
+			sessionManager: { getSessionFile: () => "" },
+			ui: { notify: () => undefined },
+		};
+		const handler = handlers.get("session_start");
+		assert.ok(handler);
+		await assert.doesNotReject(async () => {
+			await handler({}, ctx);
+			await handler({}, ctx);
+		});
+		assert.equal(attempts, 2, "each session start still tries to deliver");
+	} finally {
+		if (previous === undefined) delete process.env["DECISIONS_STATE_DIR"];
+		else process.env["DECISIONS_STATE_DIR"] = previous;
+		for (const d of [dir, stateDir]) fs.rmSync(d, { recursive: true, force: true });
+	}
+});

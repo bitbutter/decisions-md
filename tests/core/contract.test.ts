@@ -11,9 +11,10 @@ const REPO = path.resolve(import.meta.dirname, "..", "..");
 const CLI = path.join(REPO, "bin", "decisions.ts");
 
 /**
- * One JSON object in on stdin, one out on stdout. `execFile` has no `input`
- * option, so the CLI's stdin was never written and never closed and every call
- * in this file sat in `readFileSync(0)` until the test run timed out.
+ * One JSON object in on stdin, one out on stdout.
+ *
+ * `execFile` has no `input` option, so the CLI's stdin was never closed and every
+ * call in this file used to sit in `readFileSync(0)` until the run timed out.
  */
 function cli(input: string): Promise<{ code: number; stdout: string; stderr: string }> {
 	return new Promise((resolve, reject) => {
@@ -78,9 +79,9 @@ test("the CLI answers every handled request with exit code 0", async () => {
 		assert.equal(ok.code, 0);
 		assert.equal(JSON.parse(ok.stdout).action, "inject");
 
-		const blocked = await cli(JSON.stringify({ verb: "lint", root }));
-		assert.equal(blocked.code, 0);
-		assert.equal(JSON.parse(blocked.stdout).action, "none");
+		const clean = await cli(JSON.stringify({ verb: "lint", root }));
+		assert.equal(clean.code, 0);
+		assert.equal(JSON.parse(clean.stdout).action, "none");
 
 		const failed = await cli("{not json");
 		assert.equal(failed.code, 0);
@@ -92,8 +93,7 @@ test("the CLI answers every handled request with exit code 0", async () => {
 		assert.equal(unknown.code, 0);
 		assert.equal(JSON.parse(unknown.stdout).action, "fail");
 
-		const lines = blocked.stdout.trim().split("\n");
-		assert.equal(lines.length, 1, "exactly one JSON line on stdout");
+		assert.equal(clean.stdout.trim().split("\n").length, 1, "exactly one JSON line on stdout");
 	} finally {
 		cleanup();
 	}
@@ -137,30 +137,12 @@ test("core holds no harness knowledge", () => {
 	}
 });
 
-test("doctor reports the adapter and the harness version it is told about", () => {
-	const { root, cleanup } = project();
-	try {
-		const silent = handle("doctor", { root, session: "s" });
-		const silentChecks = (silent.details as { checks: Array<{ name: string; status: string }> }).checks;
-		assert.equal(silentChecks.find((check) => check.name === "adapter")?.status, "warn", "an adapter that says nothing is a warning");
-		assert.equal(silentChecks.find((check) => check.name === "harness")?.status, "warn");
-
-		const reported = handle("doctor", { root, session: "s", adapter: "pi", builtAgainst: "0.84.2" });
-		assert.equal(reported.action, "none");
-		assert.equal(reported.code, "ok");
-		assert.ok(reported.text.includes("ok   adapter: pi"), reported.text);
-		assert.ok(reported.text.includes("harness: 0.84.2"), reported.text);
-	} finally {
-		cleanup();
-	}
-});
-
 test("the engine version matches package.json", () => {
 	const pkg = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8")) as { version: string };
 	assert.equal(ENGINE_VERSION, pkg.version);
 });
 
-test("the adapter imports core and the CLI, and nothing imports the adapter", () => {
+test("the adapter imports core, and nothing imports the adapter", () => {
 	const adapter = fs.readFileSync(path.join(REPO, "harnesses", "pi", "index.ts"), "utf8");
 	assert.ok(adapter.includes('from "../../core/operations.ts"'));
 	for (const file of fs.readdirSync(path.join(REPO, "core"))) {

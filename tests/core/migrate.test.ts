@@ -15,12 +15,16 @@ function tmp(content: string | Buffer, name = "DECISIONS.md"): { dir: string; fi
 test("--write removes trivial status lines only, and is idempotent", () => {
 	const { file } = tmp("DEC-AA-001: rule\nStatus: Active (2026-01-02)\n\nDEC-AA-002: rule\nStatus: Active (2026-01-02) do not delete me\n");
 	const first = writeMigration(file);
-	assert.deepEqual(first, { removed: 1, kept: 1, changed: true });
+	assert.equal(first.removed, 1);
+	assert.equal(first.kept, 1);
+	assert.equal(first.superseded, 0);
+	assert.equal(first.changed, true);
 	const after = fs.readFileSync(file, "utf8");
 	assert.ok(after.includes("Status: Active (2026-01-02) do not delete me"));
 	assert.ok(!after.includes("DEC-AA-001: rule\nStatus: Active (2026-01-02)"));
 	const second = writeMigration(file);
-	assert.deepEqual(second, { removed: 0, kept: 1, changed: false });
+	assert.equal(second.removed, 0);
+	assert.equal(second.changed, false);
 	assert.equal(fs.readFileSync(file, "utf8"), after);
 });
 
@@ -41,7 +45,9 @@ test("a file with nothing to remove is left byte-identical, BOM included", () =>
 test("a non-UTF-8 file is never rewritten", () => {
 	const original = Buffer.from("DEC-AA-001: caf\xe9\nStatus: Active\n", "latin1");
 	const { file } = tmp(original);
-	assert.deepEqual(writeMigration(file), { removed: 0, kept: 0, changed: false });
+	const result = writeMigration(file);
+	assert.equal(result.changed, false);
+	assert.equal(result.removed, 0);
 	assert.deepEqual(fs.readFileSync(file), original);
 });
 

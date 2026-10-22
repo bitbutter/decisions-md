@@ -181,14 +181,21 @@ export function decide(input: VerbInput): Envelope {
 	const entries = parseDecisions(read.text);
 	if (entries.length === 0) return none("no_entries");
 
-	const areas = matchAreas(entries, rel, config.areaMap);
-	if (areas.length === 0) return none("no_matching_area");
+	const matched = matchAreas(entries, rel, config.areaMap);
+	if (matched.length === 0) return none("no_matching_area");
 
-	if (areas.every((area) => areaServed(root, session, area))) return none("already_served");
+	// An area whose entries all have empty statements has nothing to serve. Drop it
+	// before claiming, so a wasted claim cannot silence the area for the session.
+	const servable = matched.filter((area) =>
+		entries.some((entry) => entry.area === area && entry.statement !== ""),
+	);
+	if (servable.length === 0) return none("no_matching_area");
+
+	if (servable.every((area) => areaServed(root, session, area))) return none("already_served");
 
 	// Claim before emitting: a block must never outlive a claim that failed, or it
 	// repeats forever. Losing the claim means someone else serves it.
-	const fresh = areas.filter((area) => claimServed(root, session, area));
+	const fresh = servable.filter((area) => claimServed(root, session, area));
 	if (fresh.length === 0) return none("already_served");
 
 	const { shown, withheld } = entriesForAreas(entries, fresh);
@@ -358,15 +365,23 @@ export function migrate(input: VerbInput): Envelope {
 
 	if (mode === "write") {
 		const result = writeMigration(target);
-		const text =
-			result.removed > 0
-				? `Removed ${result.removed} plain \`Status:\` line(s).${result.kept > 0 ? ` Left ${result.kept} line(s) that carry extra text -- fold anything worth keeping into the statement, then delete by hand.` : ""}`
-				: result.kept > 0
-					? `Nothing to remove. ${result.kept} \`Status:\` line(s) carry extra text -- fold anything still true into the statement above, then delete by hand.`
-					: "Nothing to migrate: no \`Status:\` lines.";
+		const parts: string[] = [];
+		if (result.removed > 0) parts.push(`Removed ${result.removed} plain \`Status:\` line(s).`);
+		if (result.kept > 0) {
+			parts.push(
+				`Left ${result.kept} \`Status:\` line(s) that carry extra text -- fold anything worth keeping into the statement, then delete by hand.`,
+			);
+		}
+		if (result.superseded > 0) {
+			parts.push(
+				`${result.superseded} superseded record(s) are archived by --archive-superseded, not by this command.`,
+			);
+		}
+		const text = parts.length > 0 ? parts.join(" ") : "Nothing to migrate: no \`Status:\` lines.";
+		const details = { removed: result.removed, kept: result.kept, superseded: result.superseded };
 		return result.changed
-			? none("migrated", { removed: result.removed, kept: result.kept }, text)
-			: none("nothing_to_migrate", { removed: result.removed, kept: result.kept }, text);
+			? none("migrated", details, text)
+			: none("nothing_to_migrate", details, text);
 	}
 
 	if (mode === "archive-superseded") {
@@ -379,6 +394,13 @@ export function migrate(input: VerbInput): Envelope {
 					? `Cannot archive: ${result.offendingId ?? "a record"} is marked superseded but names no successor ID. Name the entry that replaced it, then retry.`
 					: `Cannot archive: the successor named in the Status line (${result.offendingId ?? "unknown"}) is not an entry in this file. Write the successor first, then retry.`;
 			return { action: "block", text, code: result.refused, details: {} };
+		}
+		if (result.writeFailed) {
+			return fail(
+				"engine_error",
+				`Archived ${result.archived.join(", ")} but could not rewrite ${path.basename(target)}. The archive is written; fix the file's permissions and retry.`,
+				{ archived: result.archived.length },
+			);
 		}
 		if (result.archived.length === 0) return none("clean", {}, "No superseded records to archive.");
 		return none(

@@ -38,6 +38,8 @@ declare module "@earendil-works/pi-coding-agent" {
 
 	export interface ToolResultEvent extends ToolCallEvent {
 		content?: ToolResultContent[];
+		/** A failed tool call. The adapter skips bookkeeping for these. */
+		isError?: boolean;
 	}
 
 	export interface ExtensionEventMap {

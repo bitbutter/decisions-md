@@ -206,7 +206,7 @@ Bloat signals. Never a reason to refuse anything, never repaired automatically.
 
 | Code | Condition | Threshold |
 |---|---|---|
-| `entry_too_long` | non-blank lines from the ID line to the next ID line | more than 8 |
+| `entry_too_long` | non-blank lines the entry occupies: its ID line, statement continuations and field lines. Prose between entries is the document's, not the entry's, and does not count | more than 8 |
 | `statement_too_long` | words in the joined statement | more than 120 |
 | `code_fingerprint` | the statement names a source file, a `name()` call, or a `lower_snake_identifier` with three or more parts | first match only |
 | `area_too_large` | entries sharing one area label | more than 25 |
@@ -295,7 +295,8 @@ These are real behaviours of the 2.2.0 implementation. v3 keeps them, fixtures p
 1. **ID grammar.** v2 accepted `DEC-<letters>-<any digits>`, where "letters" was one segment of one or more. v3 requires `[A-Z]{2,}` per segment, one or more segments, and exactly three digits at the end. Consequences: `DEC-ENEMY-AI-001` becomes an entry (24 such records exist in one live project, invisible today), while `DEC-C-001`, `DEC-COMBAT-01` and `DEC-COMBAT-0001` become errors. No live project has an ID that v2 accepted and v3 rejects, so the tightening costs nothing today.
 2. **Area label.** The label spans every area segment (`enemy-ai`), which is what grouping, `--area` and `area_map` use.
 3. **Issue codes.** Lint issues carry a stable machine code beside their message, so an adapter can report structure without pinning prose.
-4. **Swallowed identifiers are reported.** `  DEC-INPUT-002: rule` (an entry indented off column 0) and `DEC-INPUT 003: rule` (a space where the hyphen belongs) were absorbed into the statement above them with no diagnostic in 2.2.0, which is the same silent loss the grammar change exists to end. Both are now `malformed_id` ([§5.3](#53-near-miss-identifiers-that-must-fail)). No live project contains either shape, so nothing gains an error today, and parsing is unchanged: the line still continues the statement until someone fixes it.
+4. **The length warning counts the entry, not its neighbourhood.** 2.2.0 counted every non-blank line from an entry's ID line to the next ID line, so a heading and a paragraph after the closing blank line could make a one-line rule look nine lines long. v3 counts only the lines the entry occupies.
+5. **Swallowed identifiers are reported.** `  DEC-INPUT-002: rule` (an entry indented off column 0) and `DEC-INPUT 003: rule` (a space where the hyphen belongs) were absorbed into the statement above them with no diagnostic in 2.2.0, which is the same silent loss the grammar change exists to end. Both are now `malformed_id` ([§5.3](#53-near-miss-identifiers-that-must-fail)). No live project contains either shape, so nothing gains an error today, and parsing is unchanged: the line still continues the statement until someone fixes it.
 
 One thing deliberately *not* changed, because it looks like an oversight and is not: a `Status:` line inside a closed fence is still reported ([§8](#behaviour-carried-over-from-220)), even though the fence's contents are never entries.
 

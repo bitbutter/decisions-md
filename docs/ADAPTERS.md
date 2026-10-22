@@ -132,6 +132,10 @@ Core owns decision state. Adapters pass an opaque session identity and never kee
 
 Claims are a discipline, not a lock: **claim before emitting text, and stay silent if the claim fails.** A failed claim means either another caller won or the state directory is unwritable. Blocking on either produces a block that repeats forever, which is worse than a missed serve.
 
+### 4.7 The verb layer
+
+The verbs themselves are plain functions in `core/operations.ts`, so an in-process adapter and the CLI run the same code rather than two lookalikes. `handle(verb, input)` is the envelope boundary: it returns the verb's envelope and turns a malformed payload into a `fail` envelope instead of throwing. Anything that speaks the envelope — the CLI, a subprocess adapter, the conformance runner — goes through `handle`.
+
 ## 5. Verbs
 
 `bin/decisions` exposes these verbs. Each is a thin wrapper: read stdin, call core, emit the envelope, exit 0.
@@ -173,7 +177,7 @@ Checks run in this order and the first hit wins, so a code tells you why nothing
 
 `details`: `{ decisionsFile, areas, ids, withheld }`. `ids` are the entries actually rendered; `withheld` counts entries in the served areas beyond the cap (15).
 
-Every entry in a served area is in the text; the engine does not summarise, and a file that is not in format still serves whatever parses. Silence is the losing move, not a possibly-stale rule. The one entry that is never served is one whose statement is empty: there is no rule in it, `lint` already reports it, and a bare ID in a binding block reads as a rule that says nothing. Those entries are dropped before area matching, so an area containing only them cannot match and no claim is made.
+Every entry in a served area is in the text; the engine does not summarise, and a file that is not in format still serves whatever parses. Silence is the losing move, not a possibly-stale rule. The one entry that is never served is one whose statement is empty: there is no rule in it, `lint` already reports it, and a bare ID in a binding block reads as a rule that says nothing. An area whose entries are all like that is dropped before any claim is taken, so a wasted claim cannot silence the area for the rest of the session.
 
 Exact text, `{N}` entries, one area:
 
@@ -283,7 +287,7 @@ Input: `{ root, file?, mode: "check" | "write" | "archive-superseded", now? }`. 
 
 A refusal writes nothing: no archive file, no edit.
 
-`details`, by mode — `check`: `{ trivialStatus, nontrivialStatus, superseded: [{ line, id, successor }], formatErrors }`, where `superseded[].line` is the record's ID line and `nontrivialStatus` excludes records that archiving handles; `write`: `{ removed, kept }`; `archive-superseded`: `{ archived, archiveFile }`.
+`details`, by mode — `check`: `{ trivialStatus, nontrivialStatus, superseded: [{ line, id, successor }], formatErrors }`, where `superseded[].line` is the record's ID line and `nontrivialStatus` excludes records that archiving handles; `write`: `{ removed, kept, superseded }`, where `kept` counts status lines a human must fold in by hand and `superseded` counts records for `archive-superseded`; `archive-superseded`: `{ archived, archiveFile }`.
 
 ### 5.8 `doctor`
 
@@ -317,7 +321,7 @@ Comparison paths are project-relative and forward-slashed. Case folding follows 
 
 * **State root**: `$DECISIONS_STATE_DIR`, else `~/.decisions-md/state/`. Not under any harness's directory: the location is a product decision, and a harness-named path inside the engine is exactly the leak this architecture forbids.
 * **Project key**: a readable slug of the project directory name (40 characters, `[A-Za-z0-9._-]`), then a hyphen and the first ten hex characters of the SHA-1 of the normalised absolute root. Readable enough to delete by hand, unique enough not to collide.
-* **Session directory**: `s-` plus the sanitised session identity, truncated. Core never interprets the identity; the adapter supplies it, and may supply a new one per session.
+* **Session directory**: `s-` plus the sanitised session identity truncated to 48 characters, plus eight hex characters of its hash. The prefix is for a human reading the directory; the hash is what stops two long identities that share a prefix from colliding, which would mix their served markers and silently suppress a serve. Core never interprets the identity; the adapter supplies it, and may supply a new one per session.
 * **Never inside the consuming project.** Not a temp file, not a cache, not a lock. The only things core reads from a project are `DECISIONS.md` and `.decisions/config.json`; the only things it writes are the files `migrate` was told to rewrite. Fixtures assert the project tree is otherwise unchanged.
 * **Nothing here is precious.** Deleting the state root costs one re-served decision list. The root is a sibling of the conventional clone path (`~/.claude/decisions-md`), never a parent of it, so nothing writes into this repository's own working tree.
 * **Fallback**: if the OS gives no home directory, the root falls back to a temp path and `doctor` reports it as a failure. Writing state into whatever directory happened to be current — i.e. into a project — is the one outcome the fallback exists to prevent.

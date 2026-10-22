@@ -39,6 +39,19 @@ refuses the whole run — writing nothing — when a record names no successor o
 that is not an entry. `--write` removes only `Status:` lines that carry nothing but a state
 and a date, and leaves the rest with line numbers. Either mode is a no-op on a second run.
 
+### Fixed
+
+- **The length warning counts the entry, not its neighbourhood.** 2.2.0 counted every
+  non-blank line from an entry's ID line to the next ID line, so a heading and a paragraph
+  after the closing blank line could make a one-line rule look nine lines long. The
+  warning now counts only the lines the entry occupies.
+- **`--write` does not treat superseded records as hand work.** Their `Status:` lines are
+  counted separately and reported as `--archive-superseded`'s job, instead of asking you to
+  fold a dead record into the statement above it.
+- **A serve is never spent on nothing.** An area whose entries all have empty statements is
+  dropped before any area is marked served, so one bad entry cannot silence that area for
+  the rest of the session.
+
 ### Verified
 
 - **pi**: last verified against pi 0.84.2 on 2026-10-22, in a real session. The decisions
@@ -47,7 +60,7 @@ and a date, and leaves the rest with line numbers. Either mode is a no-op on a s
 - **Claude Code 2.2.0**: unchanged and unverified since the fork. Frozen at 2.2.0; the
   Python plugin at the repo root still installs from this repository's marketplace.
 
-The test surface: 66 unit and adapter tests, 15 conformance fixtures that run twice —
+The test surface: 75 unit and adapter tests, 15 conformance fixtures that run twice —
 in process and through the CLI — with the two envelope sequences compared field by field,
 and a fifth adapter written from `docs/ADAPTERS.md` alone.
 

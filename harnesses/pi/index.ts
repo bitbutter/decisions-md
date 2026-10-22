@@ -47,12 +47,21 @@ function makeSessionId(ctx: { sessionManager?: { getSessionFile?: () => string |
 
 export default function decisionsMd(pi: ExtensionAPI): void {
 	let session = "ephemeral";
+	let deliveryFailureLogged = false;
 
 	const deliver = (text: string, delivery: "nextTurn" | "followUp"): void => {
 		try {
 			pi.sendMessage({ customType: CUSTOM_TYPE, content: text, display: false }, { deliverAs: delivery });
-		} catch {
-			// A failed injection must never stand between the user and their work.
+		} catch (error) {
+			// A failed delivery must never stand between the user and their work, but
+			// silence would hide a broken install, so say it once where a human can see.
+			if (!deliveryFailureLogged) {
+				deliveryFailureLogged = true;
+				process.stderr.write(
+					`[decisions] could not deliver context: ${error instanceof Error ? error.message : String(error)}
+`,
+				);
+			}
 		}
 	};
 
@@ -108,6 +117,9 @@ export default function decisionsMd(pi: ExtensionAPI): void {
 
 	pi.on("tool_result", async (event, ctx) => {
 		if (!WRITE_TOOLS.has(event.toolName)) return;
+		// A failed write changed nothing, so recording it would later ask the user to
+		// write down work that never happened.
+		if (event.isError === true) return;
 		const file = targetPath(event, ctx.cwd);
 		if (!file) return;
 

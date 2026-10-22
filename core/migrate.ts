@@ -9,15 +9,19 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { decodeBytes, isLegacySuffixId, normalizeText, parseDecisions, parseId } from "./parse.ts";
+import { decodeBytes, normalizeText, parseDecisions, parseId } from "./parse.ts";
 import { lintFile } from "./lint.ts";
 import type { Entry, MigrationReport } from "./types.ts";
 
 const TRIVIAL_STATUS_RE = /^Status:[ \t]*Active[ \t]*(\([ \t]*\d{4}-\d{2}-\d{2}[ \t]*\))?[ \t]*$/;
+const SUPERSEDED_STATUS_RE = /^Status:[ \t]*superseded\b/i;
 const STATUS_FIELD = "Status";
 
+const ARCHIVE_PREAMBLE =
+	"# Decision archive\n\nRecords moved out of DECISIONS.md are not binding. Git holds the full history.\n";
+
 interface RawFile {
-	/** Lines including their own terminators, so survivors can be written back byte for byte. */
+	/** Lines including their own terminators, so survivors are written back byte for byte. */
 	chunks: string[];
 	bodies: string[];
 	validUtf8: boolean;
@@ -34,15 +38,15 @@ function readRaw(file: string): RawFile | null {
 	let raw = text;
 	if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
 	const chunks = raw.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g) ?? [];
-	// The final match of that pattern is always an empty string; drop it so line
-	// counts line up with split("\n") on the normalised text.
+	// The final match of that pattern is always an empty string; drop it so the
+	// line indexes line up with split("\n") on the normalised text.
 	if (chunks.length > 0 && chunks[chunks.length - 1] === "") chunks.pop();
 	return { chunks, bodies: chunks.map((c) => c.replace(/[\r\n]+$/, "")), validUtf8 };
 }
 
 function writeAtomic(file: string, text: string): boolean {
 	const dir = path.dirname(file);
-	const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.tmp`);
+	const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`);
 	try {
 		fs.mkdirSync(dir, { recursive: true });
 		fs.writeFileSync(tmp, text, "utf8");
@@ -60,7 +64,10 @@ function writeAtomic(file: string, text: string): boolean {
 
 export interface WriteResult {
 	removed: number;
+	/** Status lines that carry text and are not superseded: a human's job. */
 	kept: number;
+	/** Superseded records, which `archive-superseded` handles. */
+	superseded: number;
 	changed: boolean;
 }
 
@@ -71,11 +78,12 @@ export interface WriteResult {
  */
 export function writeMigration(file: string): WriteResult {
 	const raw = readRaw(file);
-	if (!raw || !raw.validUtf8) return { removed: 0, kept: 0, changed: false };
+	if (!raw || !raw.validUtf8) return { removed: 0, kept: 0, superseded: 0, changed: false };
 
 	const keptChunks: string[] = [];
 	let removed = 0;
 	let kept = 0;
+	let superseded = 0;
 	for (let i = 0; i < raw.chunks.length; i += 1) {
 		const body = (raw.bodies[i] ?? "").trim();
 		if (/^Status:/.test(body)) {
@@ -83,19 +91,20 @@ export function writeMigration(file: string): WriteResult {
 				removed += 1;
 				continue;
 			}
-			kept += 1;
+			if (SUPERSEDED_STATUS_RE.test(body)) superseded += 1;
+			else kept += 1;
 		}
 		keptChunks.push(raw.chunks[i] as string);
 	}
-	if (removed === 0) return { removed: 0, kept, changed: false };
+	if (removed === 0) return { removed: 0, kept, superseded, changed: false };
 	const wrote = writeAtomic(file, keptChunks.join(""));
-	return { removed: wrote ? removed : 0, kept, changed: wrote };
+	return { removed: wrote ? removed : 0, kept, superseded, changed: wrote };
 }
 
 interface SupersededRecord {
 	entry: Entry;
 	successorId: string | null;
-	/** Index range into the raw lines: [start, lastNonBlank]. */
+	/** Index range into the raw lines: [start, end], both inclusive, non-blank. */
 	start: number;
 	end: number;
 }
@@ -113,55 +122,39 @@ export function supersededRecords(text: string): { entry: Entry; successorId: st
 
 function findSuccessor(entry: Entry, statusValue: string): string | null {
 	for (const candidate of statusValue.match(/DEC-[A-Z0-9_-]+/g) ?? []) {
-		if (parseId(candidate) && !isLegacySuffixId(candidate)) return candidate;
-	}
-	const byPhrase = /Superseded by\s+(DEC-[A-Z0-9_-]+)/i.exec(entry.statement);
-	if (byPhrase && byPhrase[1] && parseId(byPhrase[1])) return byPhrase[1];
-	for (const candidate of entry.statement.match(/DEC-[A-Z0-9_-]+/g) ?? []) {
 		if (parseId(candidate)) return candidate;
 	}
+	const byPhrase = /Superseded by\s+(DEC-[A-Z0-9_-]+)/i.exec(entry.statement);
+	if (byPhrase?.[1] && parseId(byPhrase[1])) return byPhrase[1];
 	return null;
+}
+
+function normalizedTextOf(raw: RawFile): string {
+	return normalizeText(raw.bodies.length > 0 ? `${raw.bodies.join("\n")}\n` : "");
 }
 
 /** What a migration run would do, without touching anything. */
 export function checkMigration(file: string): MigrationReport {
-	let read: string | null = null;
-	try {
-		read = normalizeText(decodeBytes(fs.readFileSync(file)).text);
-	} catch {
-		read = null;
-	}
+	const raw = readRaw(file);
 	const report: MigrationReport = {
 		trivialStatus: 0,
 		nontrivialStatus: 0,
 		superseded: [],
-		formatErrors: 0,
+		formatErrors: lintFile(file).errors.length,
 	};
-	if (read === null) {
-		report.formatErrors = 1;
-		return report;
+	if (!raw) return report;
+
+	for (const body of raw.bodies) {
+		const line = body.trim();
+		if (!/^Status:/.test(line)) continue;
+		if (TRIVIAL_STATUS_RE.test(line)) report.trivialStatus += 1;
+		else if (!SUPERSEDED_STATUS_RE.test(line)) report.nontrivialStatus += 1;
 	}
-	const records = supersededRecords(read);
-	const supersededIds = new Set(records.map((r) => r.entry.id));
-	for (const chunk of read.split("\n")) {
-		const body = chunk.trim();
-		if (!/^Status:/.test(body)) continue;
-		if (TRIVIAL_STATUS_RE.test(body)) report.trivialStatus += 1;
-		else {
-			// A superseded record's status line is what archiving deals with.
-			const insideSuperseded = records.some((r) => body.startsWith("Status: Superseded"));
-			if (!insideSuperseded) report.nontrivialStatus += 1;
-		}
-	}
-	report.superseded = records.map((r) => ({
-		line: r.entry.line,
-		id: r.entry.id,
-		successor: r.successorId,
+	report.superseded = supersededRecords(normalizedTextOf(raw)).map((record) => ({
+		line: record.entry.line,
+		id: record.entry.id,
+		successor: record.successorId,
 	}));
-	report.formatErrors = lintFile(file).errors.length;
-	if (supersededIds.size === 0 && report.trivialStatus === 0 && report.nontrivialStatus === 0) {
-		report.formatErrors = lintFile(file).errors.length;
-	}
 	return report;
 }
 
@@ -170,19 +163,23 @@ export interface ArchiveResult {
 	refused?: "archive_refused_no_successor" | "archive_refused_missing_successor";
 	offendingId?: string;
 	archiveFile?: string;
+	/** The archive was written but DECISIONS.md could not be rewritten. */
+	writeFailed?: boolean;
 }
 
 /** Move superseded records into the archive, then remove them. */
 export function archiveSuperseded(file: string, archiveFile: string, nowIso: string): ArchiveResult {
 	const raw = readRaw(file);
 	if (!raw || !raw.validUtf8) return { archived: [] };
-	const text = normalizeText(raw.bodies.join("\n") + (raw.bodies.length > 0 ? "\n" : ""));
+	const text = normalizedTextOf(raw);
 	const entries = parseDecisions(text);
 	const byId = new Set(entries.map((e) => e.id));
 
 	const records: SupersededRecord[] = [];
 	for (const { entry, successorId } of supersededRecords(text)) {
-		if (successorId === null) return { archived: [], refused: "archive_refused_no_successor", offendingId: entry.id };
+		if (successorId === null) {
+			return { archived: [], refused: "archive_refused_no_successor", offendingId: entry.id };
+		}
 		if (!byId.has(successorId)) {
 			return { archived: [], refused: "archive_refused_missing_successor", offendingId: successorId };
 		}
@@ -201,33 +198,36 @@ export function archiveSuperseded(file: string, archiveFile: string, nowIso: str
 		}
 		record.end = end;
 	}
-	// Never remove the same line twice if two records somehow overlap.
 	records.sort((a, b) => a.start - b.start);
-
-	const blocks = records.map((r) => raw.bodies.slice(r.start, r.end + 1).join("\n"));
-	const header = `## Archived ${nowIso} from DECISIONS.md`;
-	const preamble =
-		"# Decision archive\n\nRecords moved out of DECISIONS.md are not binding. Git holds the full history.\n";
-	const section = `${header}\n\n${blocks.join("\n\n")}\n`;
 
 	let existing = "";
 	try {
 		existing = fs.readFileSync(archiveFile, "utf8");
 	} catch {
-		existing = preamble;
+		existing = ARCHIVE_PREAMBLE;
 	}
-	const nextArchive = existing.endsWith("\n") ? `${existing}\n${section}` : `${existing}\n\n${section}`;
-	if (!writeAtomic(archiveFile, nextArchive)) return { archived: [] };
+
+	// A block already in the archive is not appended twice. That makes a rerun
+	// after a failed rewrite safe instead of duplicating history.
+	const blocks = records
+		.map((r) => raw.bodies.slice(r.start, r.end + 1).join("\n"))
+		.filter((block) => !existing.includes(block));
+	if (blocks.length > 0) {
+		const section = `## Archived ${nowIso} from DECISIONS.md\n\n${blocks.join("\n\n")}\n`;
+		const nextArchive = existing.endsWith("\n") ? `${existing}\n${section}` : `${existing}\n\n${section}`;
+		if (!writeAtomic(archiveFile, nextArchive)) return { archived: [] };
+	}
+
 	// Verify the archive before removing anything: archive first, strip second.
-	const written = (() => {
-		try {
-			return fs.readFileSync(archiveFile, "utf8");
-		} catch {
-			return "";
-		}
-	})();
+	let written = "";
+	try {
+		written = fs.readFileSync(archiveFile, "utf8");
+	} catch {
+		written = "";
+	}
 	for (const record of records) {
-		if (!written.includes(`${record.entry.id}: `)) return { archived: [], archiveFile };
+		const block = raw.bodies.slice(record.start, record.end + 1).join("\n");
+		if (!written.includes(block)) return { archived: [], archiveFile };
 	}
 
 	// Remove [start .. end] plus one following blank line, per record.
@@ -238,11 +238,9 @@ export function archiveSuperseded(file: string, archiveFile: string, nowIso: str
 		if (after < raw.chunks.length && (raw.bodies[after] ?? "").trim() === "") doomed.add(after);
 	}
 	const remaining = raw.chunks.filter((_, i) => !doomed.has(i)).join("");
-	const today = new Date(nowIso).getTime();
-	if (!Number.isFinite(today)) {
-		// A caller-supplied timestamp that is not a date is a bug, not a reason to
-		// write a header nobody can read; fall back to the wall clock.
+	const archivedIds = records.map((r) => r.entry.id);
+	if (!writeAtomic(file, remaining)) {
+		return { archived: archivedIds, archiveFile, writeFailed: true };
 	}
-	writeAtomic(file, remaining);
-	return { archived: records.map((r) => r.entry.id), archiveFile };
+	return { archived: archivedIds, archiveFile };
 }

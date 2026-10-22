@@ -65,10 +65,18 @@ export function safeComponent(name: string): string | null {
 	return s.slice(0, 80);
 }
 
-/** The session directory, or null when the identity sanitises to nothing. */
+/**
+ * The session directory, or null when the identity sanitises to nothing.
+ *
+ * The sanitised prefix is for a human reading the directory; the hash is what
+ * keeps two long session identities that share a prefix from colliding, which
+ * would mix their served markers and silently suppress a serve.
+ */
 export function sessionDir(root: string, session: string): string | null {
 	const safe = safeComponent(session);
-	return safe ? path.join(projectStateDir(root), `s-${safe}`) : null;
+	if (!safe) return null;
+	const digest = createHash("sha1").update(session, "utf8").digest("hex").slice(0, 8);
+	return path.join(projectStateDir(root), `s-${safe.slice(0, 48)}-${digest}`);
 }
 
 /** Create `p` exactly once. True only for the caller that created it. */
