@@ -4,9 +4,23 @@
   "description": "Delivers a project's binding DECISIONS.md rules to a coding agent at the moment it edits code",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitbutter/decisions-md.git"
+  },
   "engines": {
     "node": ">=22.18"
   },
+  "files": [
+    "bin",
+    "core",
+    "harnesses",
+    "spec",
+    "docs/ADAPTERS.md",
+    "README.md",
+    "LICENSE",
+    "!harnesses/pi/*.test.ts"
+  ],
   "bin": {
     "decisions": "./bin/decisions.ts"
   },
