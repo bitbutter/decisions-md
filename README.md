@@ -4,16 +4,7 @@ decisions-md is a system for writing down the rules of your project while you wo
 
 A rule you settled last week is easy for an agent to contradict today, because nothing in the code states it. `DECISIONS.md` is a plain file with one binding decision per entry. This package reads it, works out which decisions govern the file the agent is about to edit, and puts them in front of the agent at that moment: once per area per session, just before the edit, not in every prompt.
 
-Version 3 is a pi package written in TypeScript, with no dependencies at runtime. It keeps its state outside your repository.
-
-## Harness status
-
-| Harness | Version | Stands |
-|---|---|---|
-| pi | 3.0.0-rc.1 | Last verified against pi 0.84.2 on 2026-10-22: a real session had the decisions served at edit time, the edit blocked, and the retry pass. |
-| Claude Code | 2.2.1 | Its Python test suites pass on this machine as of 2026-10-22 (122 and 12 checks), and `claude plugin validate` passes on both manifests. No live Claude Code session has run it since the fork. Frozen. |
-
-There is no Codex or OpenCode adapter. `docs/ADAPTERS.md` says what one would have to do; `tests/adapters/` builds a fifth adapter from that document alone, to check that `core/` holds no harness knowledge.
+Version 3 is a pi package in TypeScript, with no dependencies at runtime, and it keeps its state outside your repository. It was verified in a live session against pi 0.84.2. Claude Code runs the older Python plugin, frozen at 2.2.1.
 
 ## Install
 
@@ -21,90 +12,48 @@ There is no Codex or OpenCode adapter. `docs/ADAPTERS.md` says what one would ha
 pi install git:github.com/bitbutter/decisions-md@v3-rc
 ```
 
-To run a clone instead:
+To run a clone instead: `pi install /absolute/path/to/decisions-md`.
 
-```
-pi install /absolute/path/to/decisions-md
-```
-
-Until a project has a `DECISIONS.md`, the extension does nothing. Install now and write the file later. There is no per-project setup: no gitignore entry, nothing to copy in. `.decisions/config.json` is optional.
-
-In a session:
+Until a project has a `DECISIONS.md`, the extension does nothing, so install now and write the file later. There is no per-project setup and nothing to gitignore.
 
 | Command | What it does |
 |---|---|
 | `/decisions` | Lists the areas, shows one area in full, or searches by keyword |
 | `/decisions-lint` | Checks the file's format |
-| `/decisions-migrate` | Checks, writes or archives a 2.x file |
+| `/decisions-migrate` | Checks, writes or archives a file in the older 2.x format |
 | `/decisions-doctor` | Reports what the engine resolved, when something looks inert |
 
 ## The file
 
 `DECISIONS.md` goes at your project root, or in `docs/`, `support/`, `design/` or `decisions/`. Exactly one file is read, and the root wins if there are several.
 
-A decision is one line:
-
-```
-DEC-ECONOMY-001: Gold is earned in combat only, never from exploring.
-```
-
-An ID, a colon, and the rule. The statement can wrap across lines; the parts join with single spaces. Add a `Context:` line underneath when the reasoning is worth keeping:
+An entry is an ID, a colon and the rule:
 
 ```
 DEC-ECONOMY-001: Gold is earned in combat only, never from exploring.
 Context: Encounter rewards are the only source of gold.
 ```
 
-`DEC-<AREA>-<NNN>`, where an area is two or more capital letters and the number is three digits. Areas can take more than one segment: `DEC-ENEMY-AI-001` is an entry in area `enemy-ai`. Areas are yours to name — INPUT, RENDER, ECONOMY, whatever parts your project has. The engine only uses them for grouping.
+The statement can wrap across lines and the parts join with single spaces. The `Context:` line is optional and holds the reasoning. An ID is `DEC-<AREA>-<NNN>`, where an area is two or more capital letters and the number is three digits; `DEC-ENEMY-AI-001` belongs to area `enemy-ai`. Areas are yours to name, and the engine uses them only for grouping. Headings like `## Combat` are ordinary markdown, for your own reading.
 
-The `## Combat` headings are ordinary markdown for your own reading. The area comes from the ID, so headings are optional.
-
-There is no status line and no status vocabulary. Every entry in the file is binding.
-
-A whole file looks like this:
+Every entry in the file is binding. There is no status line and no status vocabulary.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/decisions-example-dark.svg">
   <img alt="A DECISIONS.md file holding five decisions grouped into combat, economy and save areas. Each entry is an ID, a colon and a rule, most with a Context line underneath." src="docs/decisions-example-light.svg" width="860">
 </picture>
 
-## What belongs in the file
+## When to add a rule
 
-Two questions, both from the rule above: does the project's own content already establish it, and does it reach work not yet written?
+Ask what happens if someone violates the constraint. If the project still compiles and the tests still pass, and future rules are likely to depend on this one, it belongs in the file. If a type, an assert or a test would already catch the violation, or no other important rule is likely to depend on it, leave it out.
 
-**1. Could someone violate this without anything failing?**
+**Changing one.** Have the agent edit the entry in place and keep its ID, with the reason in the commit message. Do not stack a second entry on top of the first, and do not keep a revision log inside the entry: the file states what is true now, and `git log -p DECISIONS.md` states what used to be true. Code comments point at these IDs, so a comment citing `DEC-INPUT-001` has to reach the rule that applies now.
 
-Do the opposite in your head: does it compile, pass the tests and run? A type, an assert or a test that catches the violation is already holding the rule.
+**Retiring one.** Have the agent delete it. If "we considered X and rejected it" still matters, that is a live rule rather than a retired one: write the rejection as an entry that names the option and the reason it stays out.
 
-**2. Does it bind work that has not been written yet?**
+## What happens
 
-Name everything that has to obey it. If the list is "anything that ever grants gold", it belongs in the file; if you can finish it, it is a refactor.
-
-A rule against a second source of gold has no list you could finish. Rebind jump to B and you can: the input map, the button prompt art.
-
-### Early decisions
-
-What the player is promised, what a save has to guarantee and what may never happen during a fight all get decided before the code that depends on them exists.
-
-The decisions made in week one are the ones most often lost. One gets made in conversation, acted on once, and then it lives in whoever remembers it. Nothing in the code states it, so an agent can write something reasonable that quietly violates it.
-
-### Changing a decision
-
-Have the agent edit the entry in place, keeping its ID, and record the reason in the commit message.
-
-Do not have it append a second entry that overrides the first, and do not keep a revision log inside the entry. The file states what is true now; `git log -p DECISIONS.md` states what used to be true, with a date, an author and a message.
-
-Keep the ID the same. Code comments refer to these IDs, and a comment pointing at `DEC-INPUT-001` should take you to the rule that applies now.
-
-Its write comes back with the format check attached, so an entry that does not parse is reported to the agent at the moment it lands.
-
-### Retiring a decision
-
-Have the agent delete it. If "we considered X and rejected it" still matters, that is a live rule rather than a retired one: write the rejection as an entry that names the option and the reason it stays out.
-
-## How it behaves
-
-**Before an edit.** When pi is about to write to a source file, the extension works out which areas govern that path and blocks the edit with those decisions:
+**Before an edit.** When pi is about to write to a source file, it is shown the decisions that govern that path, and the edit is blocked once:
 
 ```
 [DECISIONS] 2 binding decisions govern src/input/player.gd (area: input).
@@ -116,15 +65,15 @@ DEC-INPUT-002: Holding the jump button does not increase jump height.
 If one of these contradicts the change you are about to make, stop and offer the user: abandon / adapt / override. Otherwise just carry on.
 ```
 
-The model reads that, runs the edit again, and the retry goes through. This happens once per area per session: move from input code to render code and you get the render decisions. A file no decision covers is not interrupted.
+The model runs the edit again and it goes through. This happens once per area per session, so moving from input code to render code brings the render decisions. A file no decision covers is not interrupted.
 
-**At session start, and after compaction.** A short orientation block queued for the next prompt: how many decisions are on file, per area. The queued message costs no turn.
+**At session start, and after compaction.** An orientation line rides on the next prompt: how many decisions are on file, per area. No turn is spent on it.
 
-**When the model stops.** If the session edited files no decision covers, one question goes to the model: should any of this be written down? Nothing is asked when decisions already cover the edited files, when the session wrote `DECISIONS.md` itself, or after it has asked once.
+**When the model stops.** If the session edited files that no decision covers, the extension sends the agent one prompt about a rule the work may have settled. Nothing is sent when decisions already cover the edited files, when the session wrote `DECISIONS.md` itself, or a second time in the same session.
 
-**When `DECISIONS.md` is written.** The lint report is attached to the write's result. The write already happened, so nothing is blocked; the model gets the errors in the same breath.
+**When `DECISIONS.md` is written.** The lint report is attached to the write's result. The write already happened, so nothing is blocked, and the agent sees the errors immediately.
 
-**Reading them yourself.**
+You can read them yourself:
 
 ```
 /decisions                     # areas and how many decisions each holds
@@ -134,33 +83,7 @@ The model reads that, runs the edit again, and the retry goes through. This happ
 
 ## Keeping the file small
 
-`/decisions-lint` checks the format, and an error means the file will not be read correctly, so errors block. An ID that looks like a decision but does not parse is reported, never skipped.
-
-Warnings are suggestions and never block anything:
-
-- an entry stating its rule in more than about 120 words — at that length it usually holds more than one rule
-- two entries that say nearly the same thing
-- an area with more decisions than one person can hold at once
-
-## Migrating from 2.x
-
-The file format is nearly the same. These are the differences:
-
-- **`Status:` lines are errors now.** Every entry in the file is binding; history lives in git.
-- **Superseded entries are errors.** They must be archived out of the file, or someone will follow a dead rule.
-- **Multi-segment IDs parse.** `DEC-ENEMY-AI-001` was reported as "not binding" before and invisible to the agent; now it is an entry in area `enemy-ai`. A file can gain entries without being edited.
-- **Override suffixes are gone.** `DEC-INPUT-001d` is not an entry. Work the rule into the entry it overrides, then delete it.
-
-```
-/decisions-migrate                       # check: what can be fixed, what needs a person
-/decisions-migrate --archive-superseded  # move superseded records to support/decision_archive.md, then strip them
-/decisions-migrate --write               # remove plain Status: lines
-/decisions-lint                          # what is left
-```
-
-Run the archive before the strip. Stripping a superseded record without archiving promotes a dead rule back to binding. An archive run refuses and writes nothing when a superseded record names no successor, or names one that is not an entry.
-
-`--write` only removes `Status:` lines that carry nothing but a state and a date. Lines with extra text are left, with their line numbers, for you to fold into the statement above and delete. Running either mode twice is a no-op, and a file that is already conforming comes back byte-identical.
+A `/decisions-lint` error means the file will not be read correctly, so errors block; an ID that looks like a decision but does not parse is reported, never skipped. Warnings are suggestions and never block: an entry stating its rule in more than about 120 words (at that length it usually holds more than one rule), two entries that say nearly the same thing, and an area with more decisions than one person can hold at once.
 
 ## Configuration
 
@@ -177,7 +100,7 @@ Optional. Have the agent write `<project>/.decisions/config.json`, or write it y
 
 `tracked_extensions` — which file types trigger serving. The default covers Godot (`.gd`, `.tscn`, `.tres`, `.gdshader`, `.gdextension`) and common script types (`.py`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.rb`, `.go`, `.rs`, `.lua`, `.sh`, `.ps1`). A list replaces the defaults; `[]` stops serving before edits and leaves the backstop question running.
 
-`exempt_paths` — project-relative prefixes that never trigger a serve. `tools/` covers `tools/build.py` but not `src/tools/thing.py`. Setting this replaces the default list: `DECISIONS.md`, `.decisions/`, `tools/`, `addons/`, `vendor/`, `third_party/`, `node_modules/`, `.godot/`, `build/`, `dist/`.
+`exempt_paths` — project-relative prefixes that never trigger a serve. `tools/` covers `tools/build.py` but not `src/tools/thing.py`. The default is `DECISIONS.md`, `.decisions/`, `tools/`, `addons/`, `vendor/`, `third_party/`, `node_modules/`, `.godot/`, `build/`, `dist/`; setting this replaces it.
 
 `area_map` — file patterns to an area, for files whose names give no clue. A single `*` does not cross a `/`; `**` does.
 
@@ -191,23 +114,15 @@ Optional. Have the agent write `<project>/.decisions/config.json`, or write it y
 
 **It only sees the `edit` and `write` tools.** An agent that changes a file with `sed`, a heredoc or a script is not noticed. Nor are edits you make in your own editor, which is harmless: nothing depends on seeing those.
 
-**The backstop question is asked once per session**, and only about files no decision covers. A second uncovered rule in the same session is not asked about.
+**The backstop question is asked once per session**, and only about files no decision covers.
 
-**It uses some context.** An orientation line for the next prompt, the decisions for each area you touch — the statements, not the reasoning — and that one question at most.
+**It uses some context.** An orientation line for the next prompt, the decisions for each area you touch (the statements, not the reasoning), and that one question at most.
 
-## State
+## State, and when it looks inert
 
-Kept in `~/.decisions-md/state/<project-key>/`, never in your project. It holds which areas this session has already been shown, which files were edited, and which session is which. Deleting it is safe: the only effect is that the model is shown decisions it has already seen.
+State lives in `~/.decisions-md/state/<project-key>/`, never in your project: which areas the session has been shown, which files were edited, which session is which. Deleting it is safe; the only effect is that the model is shown decisions it has already seen. `DECISIONS_STATE_DIR` moves it elsewhere.
 
-`DECISIONS_STATE_DIR` moves that folder somewhere else.
-
-## Troubleshooting
-
-Run `/decisions-doctor`.
-
-It reports the engine version, the project root it resolved, the `DECISIONS.md` it found, whether it can write its state folder, and whether a session identity arrived. It reports rather than repairs.
-
-A file that is not in format is not silent: lint reports it, and whatever still parses is still served.
+`/decisions-doctor` reports the engine version, the project root it resolved, the `DECISIONS.md` it found, whether it can write its state folder, and whether a session identity arrived. It reports rather than repairs. A file that is not in format is never silent: lint names it, and whatever still parses is still served.
 
 ## Tests
 
@@ -220,28 +135,17 @@ npm run typecheck   # tsc --noEmit
 npm run live        # one real pi session, token checked in the transcript
 ```
 
-The live check reports `pass`, `fail` or `unchecked`. A check it could not run is never reported as a pass. It needs a model with credentials; `DECISIONS_LIVE_MODEL` picks it.
+The live check reports `pass`, `fail` or `unchecked`; a check it could not run is never reported as a pass. It needs a model with credentials, and `DECISIONS_LIVE_MODEL` picks it. `tests/adapters/` builds a fifth adapter from `docs/ADAPTERS.md` alone, which is how `core/` is kept from growing harness knowledge. There is no Codex or OpenCode adapter.
 
 ## Claude Code, frozen at 2.2.1
 
-The Python plugin at the repo root (`hooks/`, `commands/`, `skills/`, `.claude-plugin/`) is the 2.2.1 product, kept for Claude Code. It is frozen, with these terms.
-
-Critical correctness fixes only, with no new features and no port to v3. Its two Python suites pass on this machine as of 2026-10-22: 122 checks of the parser, linter and gate scope, and 12 checks that each hook launches through the shell. No live Claude Code session has run it since the fork, and that is the limit of what is known. Nothing flows from `core/` into it either: the two products share a format and a repository, not a runtime.
-
-A harness that becomes a daily driver for a week is the trigger to port it. Until then, an adapter is written against `docs/ADAPTERS.md` and not before.
+The Python plugin at the repo root (`hooks/`, `commands/`, `skills/`, `.claude-plugin/`) is the 2.2.1 product, kept for Claude Code and frozen: critical correctness fixes only, no new features, no port to v3. Both Python suites pass on this machine; no live Claude Code session has run it since the fork, and that is the limit of what is known. Nothing flows from `core/` into it either: the two products share a format and a repository, not a runtime. A harness that becomes a daily driver for a week is the trigger to port it; until then an adapter is written against `docs/ADAPTERS.md`.
 
 ```
 /plugin install decisions-md --marketplace bitbutter/decisions-md
 ```
 
-On Claude Code older than 2.1.275, add the marketplace first:
-
-```
-/plugin marketplace add github.com/bitbutter/decisions-md
-/plugin install decisions-md
-```
-
-It needs a Python 3 reachable as `python3`, `python` or `py`, and it keeps its state in `~/.claude/decisions-md-state/`.
+On Claude Code older than 2.1.275, add the marketplace first: `/plugin marketplace add github.com/bitbutter/decisions-md`. It needs a Python 3 reachable as `python3`, `python` or `py`, and it keeps its state in `~/.claude/decisions-md-state/`.
 
 ## License
 
