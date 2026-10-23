@@ -1,8 +1,8 @@
 # decisions-md
 
-decisions-md is a system for writing down the rules of your project while you work on it. A rule is a constraint the project's own content doesn't implicitly establish, and it governs work not yet done. It is built for workflows where you direct an agent to do everything, including the editing of `DECISIONS.md`: the rules reach the agent before it edits a covered file, and a format check comes back with each of its writes to the rules file.
+decisions-md is a system for writing down the rules of your project while you work on it. A rule is a constraint the project's own content doesn't implicitly establish, and it governs work not yet done. It is built for workflows where you direct an agent to do everything, including the editing of `DECISIONS.md`, and the rules reach the agent before it edits a covered file.
 
-A rule you settled last week is easy for an agent to contradict today, because nothing in the code states it. `DECISIONS.md` is a plain file with one binding decision per entry. This package reads it, works out which decisions govern the file the agent is about to edit, and puts them in front of the agent at that moment: once per area per session, just before the edit, not in every prompt.
+`DECISIONS.md` is a plain file with one binding decision per entry. This package reads it, works out which decisions govern the file the agent is about to edit, and puts them in front of the agent at that moment: once per area per session, just before the edit, not in every prompt.
 
 Version 3 is a pi package in TypeScript, with no dependencies at runtime, and it keeps its state outside your repository. It was verified in a live session against pi 0.84.2. Claude Code runs the older Python plugin, frozen at 2.2.1.
 
@@ -14,7 +14,7 @@ pi install git:github.com/bitbutter/decisions-md@v3-rc
 
 To run a clone instead: `pi install /absolute/path/to/decisions-md`.
 
-Until a project has a `DECISIONS.md`, the extension does nothing, so install now and write the file later. There is no per-project setup and nothing to gitignore.
+Until a project has a `DECISIONS.md`, the extension does nothing. There is no per-project setup and nothing to gitignore.
 
 | Command | What it does |
 |---|---|
@@ -47,7 +47,7 @@ Every entry in the file is binding. There is no status line and no status vocabu
 
 Ask what happens if someone violates the constraint. If the project still compiles and the tests still pass, and future rules are likely to depend on this one, it belongs in the file. If a type, an assert or a test would already catch the violation, or no other important rule is likely to depend on it, leave it out.
 
-**Changing one.** Have the agent edit the entry in place and keep its ID, with the reason in the commit message. Do not stack a second entry on top of the first, and do not keep a revision log inside the entry: the file states what is true now, and `git log -p DECISIONS.md` states what used to be true. Code comments point at these IDs, so a comment citing `DEC-INPUT-001` has to reach the rule that applies now.
+**Changing one.** Have the agent edit the entry in place and keep its ID, with the reason in the commit message. Do not stack a second entry on top of the first, and do not keep a revision log inside the entry: the file states what is true now, and `git log -p DECISIONS.md` states what used to be true.
 
 **Retiring one.** Have the agent delete it. If "we considered X and rejected it" still matters, that is a live rule rather than a retired one: write the rejection as an entry that names the option and the reason it stays out.
 
@@ -81,7 +81,7 @@ You can read them yourself:
 /decisions --area input        # one area in full, with the reasoning
 ```
 
-## Keeping the file small
+## Housekeeping
 
 A `/decisions-lint` error means the file will not be read correctly, so errors block; an ID that looks like a decision but does not parse is reported, never skipped. Warnings are suggestions and never block: an entry stating its rule in more than about 120 words (at that length it usually holds more than one rule), two entries that say nearly the same thing, and an area with more decisions than one person can hold at once.
 
