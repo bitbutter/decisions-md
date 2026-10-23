@@ -1,5 +1,7 @@
 # decisions-md
 
+decisions-md is a system for writing down the rules of your project while you work on it. A rule is a constraint the project's own content doesn't implicitly establish, and it governs work not yet done. It is built for workflows where you direct an agent to do everything, including the editing of `DECISIONS.md`: the rules reach the agent before it edits a covered file, and a format check comes back with each of its writes to the rules file.
+
 A rule you settled last week is easy for an agent to contradict today, because nothing in the code states it. `DECISIONS.md` is a plain file with one binding decision per entry. This package reads it, works out which decisions govern the file the agent is about to edit, and puts them in front of the agent at that moment: once per area per session, just before the edit, not in every prompt.
 
 Version 3 is a pi package written in TypeScript, with no dependencies at runtime. It keeps its state outside your repository.
@@ -68,6 +70,8 @@ A whole file looks like this:
 
 ## What belongs in the file
 
+Two questions, both from the rule above: does the project's own content already establish it, and does it reach work not yet written?
+
 **1. Could someone violate this without anything failing?**
 
 Do the opposite in your head: does it compile, pass the tests and run? A type, an assert or a test that catches the violation is already holding the rule.
@@ -86,15 +90,17 @@ The decisions made in week one are the ones most often lost. One gets made in co
 
 ### Changing a decision
 
-Edit it in place and keep its ID. Put the reason in the commit message.
+Have the agent edit the entry in place, keeping its ID, and record the reason in the commit message.
 
-Do not append a second entry that overrides the first, and do not keep a revision log inside the entry. The file states what is true now; `git log -p DECISIONS.md` states what used to be true, with a date, an author and a message.
+Do not have it append a second entry that overrides the first, and do not keep a revision log inside the entry. The file states what is true now; `git log -p DECISIONS.md` states what used to be true, with a date, an author and a message.
 
 Keep the ID the same. Code comments refer to these IDs, and a comment pointing at `DEC-INPUT-001` should take you to the rule that applies now.
 
+Its write comes back with the format check attached, so an entry that does not parse is reported to the agent at the moment it lands.
+
 ### Retiring a decision
 
-Delete it. If "we considered X and rejected it" still matters, that is a live rule rather than a retired one, so write it down; otherwise the question is open again.
+Have the agent delete it. If "we considered X and rejected it" still matters, that is a live rule rather than a retired one: write the rejection as an entry that names the option and the reason it stays out.
 
 ## How it behaves
 
@@ -158,7 +164,7 @@ Run the archive before the strip. Stripping a superseded record without archivin
 
 ## Configuration
 
-Optional. Drop `<project>/.decisions/config.json` — this file belongs to your project and should be committed.
+Optional. Have the agent write `<project>/.decisions/config.json`, or write it yourself. This file belongs to your project and should be committed.
 
 ```json
 {
